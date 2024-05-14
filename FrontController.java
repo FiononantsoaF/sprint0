@@ -49,7 +49,6 @@ public class FrontController extends HttpServlet {
         out.println("</html>");
         out.close();
     }
-
     private void scanControllers() {
         ServletConfig config = getServletConfig();
         String controllerPackage = config.getInitParameter("controller-package");
