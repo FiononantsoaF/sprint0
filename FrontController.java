@@ -97,8 +97,8 @@ public class FrontController extends HttpServlet {
                     Class<?> clazz = Class.forName(className);
                     if (clazz.isAnnotationPresent(AnnotationController.class)) {
                         for (Method method : clazz.getDeclaredMethods()) {
-                            if (method.isAnnotationPresent(RequestMapping.class)) {
-                                RequestMapping requestMapping = method.getAnnotation(RequestMapping.class);
+                            if (method.isAnnotationPresent(GetAnnotation.class)) {
+                                GetAnnotation requestMapping = method.getAnnotation(GetAnnotation.class);
                                 urlMapping.put(requestMapping.value(), new Mapping(clazz, method));
                                 System.out.println("Mapped URL: " + requestMapping.value() + " to " + clazz.getName() + "." + method.getName());
                             }
