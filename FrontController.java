@@ -67,7 +67,6 @@ public class FrontController extends HttpServlet {
         String controllerPackage = config.getInitParameter("controller-package");
         System.out.println("Scanning package: " + controllerPackage);
 
-        // Scanner les classes du package donné dans WEB-INF/classes
         try {
             String path = "WEB-INF/classes/" + controllerPackage.replace('.', '/');
             File directory = new File(getServletContext().getRealPath(path));
