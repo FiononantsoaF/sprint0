@@ -1,5 +1,10 @@
 package mg.itu.prom16;
 
-public class GetAnnotation {
-    
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+@Retention(RetentionPolicy.RUNTIME)
+public @interface GetAnnotation {
+    String value() default "";
 }
+
