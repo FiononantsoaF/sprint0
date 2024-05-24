@@ -42,32 +42,30 @@ public class FrontController extends HttpServlet {
             out.println("<body>");
             out.println("<h1 style='color:blue'>URL actuelle :</h1>");
             out.println("<p>" + request.getRequestURL() + "</p>");
-
+    
             String path = request.getPathInfo();
-            Mapping mapping = urlMapping.get(path);
-
+            Mapping mapping = null;
+    
+            // Vérifie si l'URL contient un identifiant après '/'
+            if (path != null && path.length() > 1) {
+                String identifier = path.substring(1); // Ignorer le '/' initial
+                mapping = urlMapping.get(identifier);
+            }
+    
             if (mapping != null) {
                 out.println("<h2>Mapping trouvé pour l'URL : " + path + "</h2>");
+                out.println("<p>URL: " + mapping.getKey() + "</p>");
                 out.println("<p>Classe : " + mapping.getControllerClass().getName() + "</p>");
                 out.println("<p>Méthode : " + mapping.getMethod().getName() + "</p>");
             } else {
                 out.println("<h2 style='color:red'>Aucun mapping trouvé pour l'URL : " + path + "</h2>");
             }
-
-            out.println("<h2>Liste des contrôleurs et leurs méthodes annotées :</h2>");
-            for (Map.Entry<String, Mapping> entry : urlMapping.entrySet()) {
-                Mapping m = entry.getValue();
-                out.println("<p>URL: " + entry.getKey() + "</p>");
-                out.println("<p>Classe: " + m.getControllerClass().getName() + "</p>");
-                out.println("<p>Méthode: " + m.getMethod().getName() + "</p>");
-                out.println("<hr>");
-            }
-
+      
             out.println("</body>");
             out.println("</html>");
         }
     }
-
+    
     private void scanControllers(ServletConfig config) {
         String controllerPackage = config.getInitParameter("controller-package");
         System.out.println("Scanning package: " + controllerPackage);
@@ -99,8 +97,9 @@ public class FrontController extends HttpServlet {
                         for (Method method : clazz.getDeclaredMethods()) {
                             if (method.isAnnotationPresent(GetAnnotation.class)) {
                                 GetAnnotation requestMapping = method.getAnnotation(GetAnnotation.class);
-                                urlMapping.put(requestMapping.value(), new Mapping(clazz, method));
-                                System.out.println("Mapped URL: " + requestMapping.value() + " to " + clazz.getName() + "." + method.getName());
+                                String key = requestMapping.value(); 
+                                urlMapping.put(key, new Mapping(key, clazz, method)); 
+                                System.out.println("Mapped URL: " + key + " to " + clazz.getName() + "." + method.getName());
                             }
                         }
                     }
@@ -113,12 +112,18 @@ public class FrontController extends HttpServlet {
 }
 
 class Mapping {
+    private final String key; 
     private final Class<?> controllerClass;
     private final Method method;
 
-    public Mapping(Class<?> controllerClass, Method method) {
+    public Mapping(String key, Class<?> controllerClass, Method method) {
+        this.key = key;
         this.controllerClass = controllerClass;
         this.method = method;
+    }
+
+    public String getKey() {
+        return key;
     }
 
     public Class<?> getControllerClass() {
