@@ -47,9 +47,8 @@ public class FrontController extends HttpServlet {
             String path = request.getPathInfo();
             Mapping mapping = null;
     
-            // Vérifie si l'URL contient un identifiant après '/'
             if (path != null && path.length() > 1) {
-                String identifier = path.substring(1); // Ignorer le '/' initial
+                String identifier = path.substring(1);
                 mapping = urlMapping.get(identifier);
             }
     
