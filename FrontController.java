@@ -12,6 +12,7 @@ import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.lang.*;
 
 public class FrontController extends HttpServlet {
     private final Map<String, Mapping> urlMapping = new HashMap<>();
@@ -40,23 +41,31 @@ public class FrontController extends HttpServlet {
             out.println("<title>FrontController</title>");
             out.println("</head>");
             out.println("<body>");
-            out.println("<h1 style='color:blue'>URL actuelle :</h1>");
-            out.println("<p>" + request.getRequestURL() + "</p>");
+            // out.println("<h1 style='color:blue'>URL actuelle :</h1>");
+            // out.println("<p>" + request.getRequestURL() + "</p>");
     
             String path = request.getPathInfo();
             Mapping mapping = null;
     
-            // Vérifie si l'URL contient un identifiant après '/'
             if (path != null && path.length() > 1) {
-                String identifier = path.substring(1); // Ignorer le '/' initial
+                String identifier = path.substring(1);
                 mapping = urlMapping.get(identifier);
             }
     
             if (mapping != null) {
-                out.println("<h2>Mapping trouvé pour l'URL : " + path + "</h2>");
-                out.println("<p>URL: " + mapping.getKey() + "</p>");
-                out.println("<p>Classe : " + mapping.getControllerClass().getName() + "</p>");
-                out.println("<p>Méthode : " + mapping.getMethod().getName() + "</p>");
+                try {
+                    Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
+                    Object result = mapping.getMethod().invoke(controllerInstance);
+                    out.println("<h2>Résultat de la méthode : " + result + "</h2>");
+                } catch (Exception e) {
+                    out.println("<h2 style='color:red'>Erreur lors de l'invocation de la méthode : " + e.getMessage() + "</h2>");
+                    e.printStackTrace(out);
+                }
+
+                // out.println("<h2>Mapping trouvé pour l'URL : " + path + "</h2>");
+                // out.println("<p>URL: " + mapping.getKey() + "</p>");
+                // out.println("<p>Classe : " + mapping.getControllerClass().getName() + "</p>");
+                // out.println("<p>Méthode : " + mapping.getMethod().getName() + "</p>");
             } else {
                 out.println("<h2 style='color:red'>Aucun mapping trouvé pour l'URL : " + path + "</h2>");
             }
