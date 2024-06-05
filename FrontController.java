@@ -12,7 +12,6 @@ import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
-import java.lang.*;
 
 public class FrontController extends HttpServlet {
     private final Map<String, Mapping> urlMapping = new HashMap<>();
@@ -32,49 +31,44 @@ public class FrontController extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         processRequest(request, response);
     }
+    
 
-    private synchronized void processRequest(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private synchronized void processRequest(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         response.setContentType("text/html;charset=UTF-8");
-        try (PrintWriter out = response.getWriter()) {
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>FrontController</title>");
-            out.println("</head>");
-            out.println("<body>");
-            // out.println("<h1 style='color:blue'>URL actuelle :</h1>");
-            // out.println("<p>" + request.getRequestURL() + "</p>");
-    
-            String path = request.getPathInfo();
-            Mapping mapping = null;
-    
-            if (path != null && path.length() > 1) {
-                String identifier = path.substring(1);
-                mapping = urlMapping.get(identifier);
-            }
-    
+        String path = request.getPathInfo();
+        if (path != null && path.length() > 1) {
+            String identifier = path.substring(1);
+            Mapping mapping = urlMapping.get(identifier);
             if (mapping != null) {
                 try {
                     Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
                     Object result = mapping.getMethod().invoke(controllerInstance);
-                    out.println("<h2>Résultat de la méthode : " + result + "</h2>");
+
+                    if (result instanceof ModelView) {
+                        ModelView modelView = (ModelView) result;
+                        for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
+                            request.setAttribute(entry.getKey(), entry.getValue());
+                        }
+                        request.getRequestDispatcher(modelView.getUrl()).forward(request, response);
+                    } else {
+                        PrintWriter out = response.getWriter();
+                        out.println("<h2>Résultat de la méthode : " + result + "</h2>");
+                    }
                 } catch (Exception e) {
+                    PrintWriter out = response.getWriter();
                     out.println("<h2 style='color:red'>Erreur lors de l'invocation de la méthode : " + e.getMessage() + "</h2>");
                     e.printStackTrace(out);
                 }
-
-                // out.println("<h2>Mapping trouvé pour l'URL : " + path + "</h2>");
-                // out.println("<p>URL: " + mapping.getKey() + "</p>");
-                // out.println("<p>Classe : " + mapping.getControllerClass().getName() + "</p>");
-                // out.println("<p>Méthode : " + mapping.getMethod().getName() + "</p>");
             } else {
+                PrintWriter out = response.getWriter();
                 out.println("<h2 style='color:red'>Aucun mapping trouvé pour l'URL : " + path + "</h2>");
             }
-      
-            out.println("</body>");
-            out.println("</html>");
+        } else {
+            PrintWriter out = response.getWriter();
+            out.println("<h2 style='color:red'>Aucun path fourni</h2>");
         }
     }
-    
+
     private void scanControllers(ServletConfig config) {
         String controllerPackage = config.getInitParameter("controller-package");
         System.out.println("Scanning package: " + controllerPackage);
