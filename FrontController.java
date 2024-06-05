@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,42 +32,71 @@ public class FrontController extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         processRequest(request, response);
     }
-    
 
-    private synchronized void processRequest(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+    private void processRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("text/html;charset=UTF-8");
+        PrintWriter out = response.getWriter();
+
         String path = request.getPathInfo();
         if (path != null && path.length() > 1) {
             String identifier = path.substring(1);
             Mapping mapping = urlMapping.get(identifier);
             if (mapping != null) {
-                try {
-                    Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
-                    Object result = mapping.getMethod().invoke(controllerInstance);
-
-                    if (result instanceof ModelView) {
-                        ModelView modelView = (ModelView) result;
-                        for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
-                            request.setAttribute(entry.getKey(), entry.getValue());
-                        }
-                        request.getRequestDispatcher(modelView.getUrl()).forward(request, response);
-                    } else {
-                        PrintWriter out = response.getWriter();
-                        out.println("<h2>Résultat de la méthode : " + result + "</h2>");
-                    }
-                } catch (Exception e) {
-                    PrintWriter out = response.getWriter();
-                    out.println("<h2 style='color:red'>Erreur lors de l'invocation de la méthode : " + e.getMessage() + "</h2>");
-                    e.printStackTrace(out);
-                }
+                handleMethodInvocation(out, mapping, request, response);
+                displayMappingDetails(out, mapping);
             } else {
-                PrintWriter out = response.getWriter();
                 out.println("<h2 style='color:red'>Aucun mapping trouvé pour l'URL : " + path + "</h2>");
             }
         } else {
-            PrintWriter out = response.getWriter();
             out.println("<h2 style='color:red'>Aucun path fourni</h2>");
         }
+        out.close();
+    }
+
+    private void handleMethodInvocation(PrintWriter out, Mapping mapping, HttpServletRequest request, HttpServletResponse response) {
+        try {
+            Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
+            Object result = mapping.getMethod().invoke(controllerInstance);
+
+            if (result instanceof String) {
+                displayStringResult(out, (String) result);
+            } else if (result instanceof ModelView) {
+                displayModelViewResult(out, (ModelView) result, request, response);
+            } else {
+                out.println("<p>Résultat non reconnu : " + result + "</p>");
+            }
+        } catch (Exception e) {
+            out.println("<p style='color:red'>Erreur lors de l'invocation de la méthode: " + e.getMessage() + "</p>");
+            e.printStackTrace(out);
+        }
+        out.println("<hr>");
+    }
+
+    private void displayStringResult(PrintWriter out, String result) {
+        out.println("<p>Résultat de la méthode : " + result + "</p>");
+    }
+
+    private void displayModelViewResult(PrintWriter out, ModelView mv, HttpServletRequest request, HttpServletResponse response) {
+        for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
+            request.setAttribute(entry.getKey(), entry.getValue());
+        }
+        dispatchModelView(out, mv, request, response);
+    }
+
+    private void dispatchModelView(PrintWriter out, ModelView mv, HttpServletRequest request, HttpServletResponse response) {
+        try {
+            request.getRequestDispatcher(mv.getUrl()).forward(request, response);
+        } catch (ServletException | IOException e) {
+            out.println("<p style='color:red'>Erreur lors de la redirection vers la page de vue: " + e.getMessage() + "</p>");
+            e.printStackTrace(out);
+        }
+    }
+
+    private void displayMappingDetails(PrintWriter out, Mapping mapping) {
+        out.println("<h3>Détails du mapping :</h3>");
+        out.println("<p>Controller : " + mapping.getControllerClass().getName() + "</p>");
+        out.println("<p>Méthode : " + mapping.getMethod().getName() + "</p>");
+        out.println("<p>Type de retour : " + mapping.getMethod().getReturnType().getSimpleName() + "</p>");
     }
 
     private void scanControllers(ServletConfig config) {
@@ -100,8 +130,8 @@ public class FrontController extends HttpServlet {
                         for (Method method : clazz.getDeclaredMethods()) {
                             if (method.isAnnotationPresent(GetAnnotation.class)) {
                                 GetAnnotation requestMapping = method.getAnnotation(GetAnnotation.class);
-                                String key = requestMapping.value(); 
-                                urlMapping.put(key, new Mapping(key, clazz, method)); 
+                                String key = requestMapping.value();
+                                urlMapping.put(key, new Mapping(key, clazz, method));
                                 System.out.println("Mapped URL: " + key + " to " + clazz.getName() + "." + method.getName());
                             }
                         }
@@ -115,7 +145,7 @@ public class FrontController extends HttpServlet {
 }
 
 class Mapping {
-    private final String key; 
+    private final String key;
     private final Class<?> controllerClass;
     private final Method method;
 
