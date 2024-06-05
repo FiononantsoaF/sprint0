@@ -9,10 +9,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class FrontController extends HttpServlet {
@@ -33,80 +31,44 @@ public class FrontController extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         processRequest(request, response);
     }
+    
 
-    private synchronized void processRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+    private synchronized void processRequest(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         response.setContentType("text/html;charset=UTF-8");
-        try (PrintWriter out = response.getWriter()) {
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>FrontController</title>");
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1 style='color:blue'>URL actuelle :</h1>");
-            out.println("<p>" + request.getRequestURL() + "</p>");
+        String path = request.getPathInfo();
+        if (path != null && path.length() > 1) {
+            String identifier = path.substring(1);
+            Mapping mapping = urlMapping.get(identifier);
+            if (mapping != null) {
+                try {
+                    Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
+                    Object result = mapping.getMethod().invoke(controllerInstance);
 
-            String path = request.getPathInfo();
-            if (path == null) {
-                path = "/";
-            } else if (!path.startsWith("/")) {
-                path = "/" + path;
-            }
-            List<Mapping> matchedMappings = urlMapping.get(path);
-
-            if (matchedMappings != null && !matchedMappings.isEmpty()) {
-                out.println("<h2>Liste des contrôleurs et leurs méthodes annotées :</h2>");
-                out.println("<p>URL: " + path + "</p>");
-                for (Mapping mapping : matchedMappings) {
-                    displayMappingDetails(out, mapping);
-                    handleMethodInvocation(request, response, out, mapping);
+                    if (result instanceof ModelView) {
+                        ModelView modelView = (ModelView) result;
+                        for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
+                            request.setAttribute(entry.getKey(), entry.getValue());
+                        }
+                        request.getRequestDispatcher(modelView.getUrl()).forward(request, response);
+                    } else {
+                        PrintWriter out = response.getWriter();
+                        out.println("<h2>Résultat de la méthode : " + result + "</h2>");
+                    }
+                } catch (Exception e) {
+                    PrintWriter out = response.getWriter();
+                    out.println("<h2 style='color:red'>Erreur lors de l'invocation de la méthode : " + e.getMessage() + "</h2>");
+                    e.printStackTrace(out);
                 }
             } else {
+                PrintWriter out = response.getWriter();
                 out.println("<h2 style='color:red'>Aucun mapping trouvé pour l'URL : " + path + "</h2>");
             }
-            out.println("</body>");
-            out.println("</html>");
-        } catch (IOException e) {
-            e.printStackTrace();
+        } else {
+            PrintWriter out = response.getWriter();
+            out.println("<h2 style='color:red'>Aucun path fourni</h2>");
         }
     }
 
-    private void displayMappingDetails(PrintWriter out, Mapping mapping) {
-        out.println("<p>Classe: " + mapping.getControllerClass().getName() + "</p>");
-        out.println("<p>Méthode: " + mapping.getMethod().getName() + "</p>");
-    }
-
-    private void handleMethodInvocation(HttpServletRequest request, HttpServletResponse response, PrintWriter out, Mapping mapping) {
-        try {
-            Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
-            Object result = mapping.getMethod().invoke(controllerInstance);
-
-            if (result instanceof String) {
-                out.println("<p>Valeur de retour: " + result + "</p>");
-            } else if (result instanceof ModelView) {
-                ModelView mv = (ModelView) result;
-                displayModelViewData(out, mv);
-                // Do not forward, just display the data
-                out.println("<p>URL de destination: " + mv.getUrl() + "</p>");
-                for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
-                    request.setAttribute(entry.getKey(), entry.getValue());
-                }
-                request.getRequestDispatcher(mv.getUrl()).forward(request, response);
-            } else {
-                out.println("<p>Valeur de retour non reconnue</p>");
-            }
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ServletException | IOException e) {
-            e.printStackTrace();
-            out.println("<p style='color:red'>Erreur lors de l'invocation de la méthode: " + e.getMessage() + "</p>");
-        }
-        out.println("<hr>");
-    }
-
-    private void displayModelViewData(PrintWriter out, ModelView mv) {
-        out.println("<h3>Data:</h3>");
-        for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
-            out.println("<p>" + entry.getKey() + ": " + entry.getValue() + "</p>");
-        }
-    }
     private void scanControllers(ServletConfig config) {
         String controllerPackage = config.getInitParameter("controller-package");
         System.out.println("Scanning package: " + controllerPackage);
