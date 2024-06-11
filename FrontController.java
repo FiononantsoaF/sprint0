@@ -87,20 +87,18 @@ public class FrontController extends HttpServlet {
                 out.println("<p>Valeur de retour: " + result + "</p>");
             } else if (result instanceof ModelView) {
                 ModelView mv = (ModelView) result;
-                // displayModelViewData(out, mv);
-                
-                // Obtenir le dispatcher pour l'URL spécifiée dans le ModelView
-                RequestDispatcher dispatcher = request.getRequestDispatcher(mv.getUrl());
-                
-                // Vérifier si le dispatcher est valide
+                String url = mv.getUrl();
+                Map<String, Object> data = mv.getData();
+                RequestDispatcher dispatcher = request.getRequestDispatcher(url);
                 if (dispatcher != null) {
-                    // Ajouter les données dans la requête
-                    request.setAttribute("modelViewData", mv.getData());
-                    
-                    // Transférer la requête et la réponse vers la nouvelle URL
+                    if (data != null && !data.isEmpty()) {
+                        for (Map.Entry<String, Object> entry : data.entrySet()) {
+                            request.setAttribute(entry.getKey(), entry.getValue());
+                        }
+                    }
                     dispatcher.forward(request, response);
                 } else {
-                    out.println("<p style='color:red'>Dispatcher non trouvé pour l'URL: " + mv.getUrl() + "</p>");
+                    out.println("<p style='color:red'>Dispatcher non trouvé pour l'URL: " + url + "</p>");
                 }
             } else {
                 out.println("<p>Valeur de retour non reconnue</p>");
@@ -112,12 +110,14 @@ public class FrontController extends HttpServlet {
         out.println("<hr>");
     }
     
-    private void displayModelViewData(PrintWriter out, ModelView mv) {
-        out.println("<h3>Data:</h3>");
-        for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
-            out.println("<p>" + entry.getKey() + ": " + entry.getValue() + "</p>");
-        }
-    }    
+    
+    
+    // private void displayModelViewData(PrintWriter out, ModelView mv) {
+    //     out.println("<h3>Data:</h3>");
+    //     for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
+    //         out.println("<p>" + entry.getKey() + ": " + entry.getValue() + "</p>");
+    //     }
+    // }    
 
     private void scanControllers(ServletConfig config) {
         String controllerPackage = config.getInitParameter("controller-package");
@@ -138,7 +138,7 @@ public class FrontController extends HttpServlet {
 
     private void scanDirectory(File directory, String packageName) {
         System.out.println("Scanning directory: " + directory.getAbsolutePath());
-
+    
         for (File file : directory.listFiles()) {
             if (file.isDirectory()) {
                 scanDirectory(file, packageName + "." + file.getName());
@@ -147,8 +147,10 @@ public class FrontController extends HttpServlet {
                 try {
                     Class<?> clazz = Class.forName(className);
                     if (clazz.isAnnotationPresent(AnnotationController.class)) {
+                        boolean annotatedMethodFound = false;
                         for (Method method : clazz.getDeclaredMethods()) {
                             if (method.isAnnotationPresent(GetAnnotation.class)) {
+                                annotatedMethodFound = true;
                                 GetAnnotation requestMapping = method.getAnnotation(GetAnnotation.class);
                                 String urlKey = requestMapping.value();
                                 if (!urlKey.startsWith("/")) {
@@ -158,6 +160,11 @@ public class FrontController extends HttpServlet {
                                 System.out.println("Mapped URL: " + urlKey + " to " + clazz.getName() + "." + method.getName());
                             }
                         }
+                        if (!annotatedMethodFound) {
+                            System.out.println("Aucune méthode annotée trouvée dans la classe: " + className);
+                        }
+                    } else {
+                        System.out.println("La classe n'est pas annotée en tant que contrôleur: " + className);
                     }
                 } catch (ClassNotFoundException e) {
                     e.printStackTrace();
@@ -165,4 +172,5 @@ public class FrontController extends HttpServlet {
             }
         }
     }
+    
 }
