@@ -26,11 +26,11 @@ public class FrontController extends HttpServlet {
     private String packageName;
     private static List<String> controllerNames = new ArrayList<>();
     String error = "";
-    private final Map<String, Mapping> urlMapping = new HashMap<>();
+    private final Map<String, Mapping> urlMaping = new HashMap<>();
     @Override
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
-        packageName = config.getInitParameter("packageControllerName"); // Recuperation du nom du package
+        packageName = config.getInitParameter("controller-package"); // Recuperation du nom du package
         try {
             // Verification si le packageControllerName n'existe pas
             if (packageName == null || packageName.isEmpty()) {
@@ -43,8 +43,7 @@ public class FrontController extends HttpServlet {
         }
     }
 
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+    protected void processRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         StringBuffer requestURL = request.getRequestURL();
         String[] requestUrlSplitted = requestURL.toString().split("/");
         String controllerSearched = requestUrlSplitted[requestUrlSplitted.length - 1];
