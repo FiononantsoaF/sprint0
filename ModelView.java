@@ -18,7 +18,6 @@ public class ModelView {
     private Map<String, Object> data = new HashMap<>();
 
     public ModelView(){
-        
     }
     public ModelView(String url) {
         this.url = url;
