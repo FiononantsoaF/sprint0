@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.RequestDispatcher;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,8 +60,8 @@ public class FrontController extends HttpServlet {
                 out.println("<h2>Liste des contrôleurs et leurs méthodes annotées :</h2>");
                 out.println("<p>URL: " + path + "</p>");
                 for (Mapping mapping : matchedMappings) {
-                    displayMappingDetails(out, mapping);
-                    handleMethodInvocation(out, mapping);
+                    // displayMappingDetails(out, mapping);
+                    handleMethodInvocation(out, mapping,request,response);
                 }
             } else {
                 out.println("<h2 style='color:red'>Aucun mapping trouvé pour l'URL : " + path + "</h2>");
@@ -77,7 +78,7 @@ public class FrontController extends HttpServlet {
         out.println("<p>Méthode: " + mapping.getMethod().getName() + "</p>");
     }
     
-    private void handleMethodInvocation(PrintWriter out, Mapping mapping) {
+    private void handleMethodInvocation(PrintWriter out, Mapping mapping, HttpServletRequest request, HttpServletResponse response) {
         try {
             Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
             Object result = mapping.getMethod().invoke(controllerInstance);
@@ -86,13 +87,25 @@ public class FrontController extends HttpServlet {
                 out.println("<p>Valeur de retour: " + result + "</p>");
             } else if (result instanceof ModelView) {
                 ModelView mv = (ModelView) result;
-                displayModelViewData(out, mv);
+                // displayModelViewData(out, mv);
                 
-                out.println("<p>URL de destination: " + mv.getUrl() + "</p>");
+                // Obtenir le dispatcher pour l'URL spécifiée dans le ModelView
+                RequestDispatcher dispatcher = request.getRequestDispatcher(mv.getUrl());
+                
+                // Vérifier si le dispatcher est valide
+                if (dispatcher != null) {
+                    // Ajouter les données dans la requête
+                    request.setAttribute("modelViewData", mv.getData());
+                    
+                    // Transférer la requête et la réponse vers la nouvelle URL
+                    dispatcher.forward(request, response);
+                } else {
+                    out.println("<p style='color:red'>Dispatcher non trouvé pour l'URL: " + mv.getUrl() + "</p>");
+                }
             } else {
                 out.println("<p>Valeur de retour non reconnue</p>");
             }
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ServletException | IOException e) {
             e.printStackTrace();
             out.println("<p style='color:red'>Erreur lors de l'invocation de la méthode: " + e.getMessage() + "</p>");
         }
