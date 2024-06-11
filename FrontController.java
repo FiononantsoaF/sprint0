@@ -87,7 +87,7 @@ public class FrontController extends HttpServlet {
             } else if (result instanceof ModelView) {
                 ModelView mv = (ModelView) result;
                 displayModelViewData(out, mv);
-                // Do not forward, just display the data
+                
                 out.println("<p>URL de destination: " + mv.getUrl() + "</p>");
             } else {
                 out.println("<p>Valeur de retour non reconnue</p>");
