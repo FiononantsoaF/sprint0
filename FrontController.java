@@ -1,11 +1,15 @@
 package mg.itu.prom16;
 
-import java.io.File;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletConfig;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,13 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import jakarta.servlet.RequestDispatcher;
-import jakarta.servlet.ServletConfig;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 
 public class FrontController extends HttpServlet {
     private String packageName;
@@ -32,11 +29,9 @@ public class FrontController extends HttpServlet {
         super.init(config);
         packageName = config.getInitParameter("controller-package"); // Recuperation du nom du package
         try {
-            // Verification si le packageControllerName n'existe pas
             if (packageName == null || packageName.isEmpty()) {
                 throw new Exception("Le nom du package du contrôleur n'est pas specifie.");
             }
-            // Scanne les contrôleurs dans le package
             scanControllers(packageName);
         } catch (Exception e) {
             error = e.getMessage();
