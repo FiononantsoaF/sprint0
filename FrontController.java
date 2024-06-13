@@ -42,13 +42,19 @@ public class FrontController extends HttpServlet {
         StringBuffer requestURL = request.getRequestURL();
         String[] requestUrlSplitted = requestURL.toString().split("/");
         String controllerSearched = requestUrlSplitted[requestUrlSplitted.length - 1];
-
+    
         PrintWriter out = response.getWriter();
         response.setContentType("text/html");
+    
         if (!error.isEmpty()) {
             out.println(error);
+        } else if (controllerSearched.endsWith(".jsp")) {
+            // Dispatcher directement vers le fichier JSP
+            RequestDispatcher dispatcher = request.getRequestDispatcher("/" + controllerSearched);
+            dispatcher.forward(request, response);
+            return;
         } else if (!urlMaping.containsKey(controllerSearched)) {
-            out.println("<p>Aucune methode associee à ce chemin.</p>");
+            out.println("<p>Aucune méthode associée à ce chemin.</p>");
         } else {
             try {
                 Mapping mapping = urlMaping.get(controllerSearched);
@@ -56,8 +62,9 @@ public class FrontController extends HttpServlet {
                 Method method = clazz.getMethod(mapping.getMethodeName());
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object);
+    
                 if (returnValue instanceof String) {
-                    out.println("Methode trouvee dans " + (String) returnValue);
+                    out.println("Méthode trouvée dans " + (String) returnValue);
                 } else if (returnValue instanceof ModelView) {
                     ModelView modelView = (ModelView) returnValue;
                     for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
@@ -65,8 +72,9 @@ public class FrontController extends HttpServlet {
                     }
                     RequestDispatcher dispatcher = request.getRequestDispatcher(modelView.getUrl());
                     dispatcher.forward(request, response);
+                    return;
                 } else {
-                    out.println("Type de donnees non reconnu");
+                    out.println("Type de données non reconnu");
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -76,7 +84,7 @@ public class FrontController extends HttpServlet {
             }
         }
     }
-
+    
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {

@@ -15,20 +15,11 @@ import java.util.Map;
 
 public class ModelView {
     private String url;
-    private Map<String, Object> data = new HashMap<>();
+    private Map<String, Object> data;
 
-    public ModelView(){
-    }
     public ModelView(String url) {
         this.url = url;
-    }
-
-    public Map<String, Object> getData() {
-        return data;
-    }
-
-    public void setData(Map<String, Object> data) {
-        this.data = data;
+        this.data = new HashMap<>();
     }
 
     public String getUrl() {
@@ -39,8 +30,11 @@ public class ModelView {
         this.url = url;
     }
 
-    public ModelView addObject(String key, Object value) {
-        this.data.put(key, value);
-        return this;
+    public Map<String, Object> getData() {
+        return data;
+    }
+
+    public void addObject(String key, Object value) {
+        data.put(key, value);
     }
 }
