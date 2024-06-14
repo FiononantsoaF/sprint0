@@ -1,70 +1,95 @@
 package mg.itu.prom16;
 
-import jakarta.servlet.RequestDispatcher;
-import jakarta.servlet.ServletConfig;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import mg.itu.prom16.AnnotationController;
+import mg.itu.prom16.GetAnnotation;
+import mg.itu.prom16.Post;
+import mg.itu.prom16.Param;
+
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.lang.reflect.Parameter;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import mg.itu.prom16.ModelView;  
+import java.io.*;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
+import java.net.URLDecoder;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import jakarta.servlet.RequestDispatcher;  // Import correct pour RequestDispatcher
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 public class FrontController extends HttpServlet {
-    private String packageName;
-    private static List<String> controllerNames = new ArrayList<>();
+    private List<String> controller = new ArrayList<>();
+    private String controllerPackage;
+    boolean checked = false;
+    HashMap<String, Mapping> lien = new HashMap<>();
     String error = "";
-    private final Map<String, Mapping> urlMaping = new HashMap<>();
+
     @Override
-    public void init(ServletConfig config) throws ServletException {
-        super.init(config);
-        packageName = config.getInitParameter("controller-package"); // Recuperation du nom du package
+    public void init() throws ServletException {
+        super.init();
+        controllerPackage = getInitParameter("controller-package");
         try {
-            if (packageName == null || packageName.isEmpty()) {
-                throw new Exception("Le nom du package du contrôleur n'est pas specifie.");
-            }
-            scanControllers(packageName);
+            this.scan();
         } catch (Exception e) {
             error = e.getMessage();
         }
     }
 
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        StringBuffer requestURL = request.getRequestURL();
-        String[] requestUrlSplitted = requestURL.toString().split("/");
-        String controllerSearched = requestUrlSplitted[requestUrlSplitted.length - 1];
-    
+    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
         PrintWriter out = response.getWriter();
+        String[] requestUrlSplitted = request.getRequestURL().toString().split("/");
+        String controllerSearched = requestUrlSplitted[requestUrlSplitted.length - 1];
+
         response.setContentType("text/html");
-    
         if (!error.isEmpty()) {
             out.println(error);
-        } else if (controllerSearched.endsWith(".jsp")) {
-            // Dispatcher directement vers le fichier JSP
-            RequestDispatcher dispatcher = request.getRequestDispatcher("/" + controllerSearched);
-            dispatcher.forward(request, response);
-            return;
-        } else if (!urlMaping.containsKey(controllerSearched)) {
-            out.println("<p>Aucune méthode associée à ce chemin.</p>");
+        } else if (!lien.containsKey(controllerSearched)) {
+            out.println("<p>Méthode non trouvée.</p>");
         } else {
             try {
-                Mapping mapping = urlMaping.get(controllerSearched);
+                Mapping mapping = lien.get(controllerSearched);
                 Class<?> clazz = Class.forName(mapping.getClassName());
-                Method method = clazz.getMethod(mapping.getMethodeName());
+                Method method = null;
+
+                // Find the method that matches the request type (GET or POST)
+                for (Method m : clazz.getDeclaredMethods()) {
+                    if (m.getName().equals(mapping.getMethodeName())) {
+                        if (request.getMethod().equalsIgnoreCase("GET") && m.isAnnotationPresent(GetAnnotation.class)) {
+                            method = m;
+                            break;
+                        } else if (request.getMethod().equalsIgnoreCase("POST") && m.isAnnotationPresent(Post.class)) {
+                            method = m;
+                            break;
+                        }
+                    }
+                }
+
+                if (method == null) {
+                    out.println("<p>Aucune méthode correspondante trouvée.</p>");
+                    return;
+                }
+
+                // Inject parameters
+                Object[] parameters = getMethodParameters(method, request);
+                
                 Object object = clazz.getDeclaredConstructor().newInstance();
-                Object returnValue = method.invoke(object);
-    
+                Object returnValue = method.invoke(object, parameters);
+
                 if (returnValue instanceof String) {
-                    out.println("Méthode trouvée dans " + (String) returnValue);
+                    out.println("Méthode trouvée dans " + returnValue);
                 } else if (returnValue instanceof ModelView) {
                     ModelView modelView = (ModelView) returnValue;
                     for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
@@ -72,19 +97,16 @@ public class FrontController extends HttpServlet {
                     }
                     RequestDispatcher dispatcher = request.getRequestDispatcher(modelView.getUrl());
                     dispatcher.forward(request, response);
-                    return;
                 } else {
                     out.println("Type de données non reconnu");
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                out.println("<p>Erreur lors du traitement de la requête.</p>");
-            } finally {
-                out.close();
             }
         }
+        out.close();
     }
-    
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -97,52 +119,74 @@ public class FrontController extends HttpServlet {
         processRequest(request, response);
     }
 
-    private void scanControllers(String packageName) throws Exception {
+    public void scan() throws Exception {
         try {
-            // Charger le package et parcourir les classes
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            String path = packageName.replace('.', '/');
-            URL resource = classLoader.getResource(path);
-
-            // Verification si le package n'existe pas
-            if (resource == null) {
-                throw new Exception("Le package specifie n'existe pas: " + packageName);
-            }
-
-            Path classPath = Paths.get(resource.toURI());
-            Files.walk(classPath)
-                    .filter(f -> f.toString().endsWith(".class"))
-                    .forEach(f -> {
-                        String className = packageName + "." + f.getFileName().toString().replace(".class", "");
+            String classesPath = getServletContext().getRealPath("/WEB-INF/classes");
+            String decodedPath = URLDecoder.decode(classesPath, "UTF-8");
+            String packagePath = decodedPath + "\\" + controllerPackage.replace('.', '\\');
+            File packageDirectory = new File(packagePath);
+            if (!packageDirectory.exists() || !packageDirectory.isDirectory()) {
+                throw new Exception("Package n'existe pas");
+            } else {
+                File[] classFiles = packageDirectory.listFiles((dir, name) -> name.endsWith(".class"));
+                if (classFiles != null) {
+                    for (File classFile : classFiles) {
+                        String className = controllerPackage + '.'
+                                + classFile.getName().substring(0, classFile.getName().length() - 6);
                         try {
-                            Class<?> clazz = Class.forName(className);
-                            if (clazz.isAnnotationPresent(AnnotationController.class)
-                                    && !Modifier.isAbstract(clazz.getModifiers())) {
-                                controllerNames.add(clazz.getSimpleName());
-                                Method[] methods = clazz.getMethods();
+                            Class<?> classe = Class.forName(className);
+                            if (classe.isAnnotationPresent(AnnotationController.class)) {
+                                controller.add(classe.getSimpleName());
 
-                                for (Method m : methods) {
-                                    if (m.isAnnotationPresent(GetAnnotation.class)) {
-                                        Mapping mapping = new Mapping(className, m.getName());
-                                        GetAnnotation GetAnnotation = m.getAnnotation(GetAnnotation.class);
-                                        String annotationValue = GetAnnotation.value();
+                                Method[] methodes = classe.getDeclaredMethods();
 
-
-                                        if (urlMaping.containsKey(annotationValue)) {
-                                            throw new Exception("URL dupliquee detectee: " + annotationValue);
+                                for (Method methode : methodes) {
+                                    if (methode.isAnnotationPresent(GetAnnotation.class)) {
+                                        Mapping map = new Mapping(className, methode.getName());
+                                        String valeur = methode.getAnnotation(GetAnnotation.class).value();
+                                        if (lien.containsKey(valeur)) {
+                                            throw new Exception("double url" + valeur);
+                                        } else {
+                                            lien.put(valeur, map);
                                         }
-
-                                        urlMaping.put(annotationValue, mapping);
+                                    } else if (methode.isAnnotationPresent(Post.class)) {
+                                        Mapping map = new Mapping(className, methode.getName());
+                                        String valeur = methode.getAnnotation(Post.class).value();
+                                        if (lien.containsKey(valeur)) {
+                                            throw new Exception("double url" + valeur);
+                                        } else {
+                                            lien.put(valeur, map);
+                                        }
                                     }
                                 }
                             }
                         } catch (Exception e) {
-                            e.printStackTrace();
+                            throw e;
                         }
-                    });
+
+                    }
+                } else {
+                    throw new Exception("le package est vide");
+                }
+            }
         } catch (Exception e) {
             throw e;
         }
+    }
+
+    private Object[] getMethodParameters(Method method, HttpServletRequest request) {
+        Parameter[] parameters = method.getParameters();
+        Object[] parameterValues = new Object[parameters.length];
+
+        for (int i = 0; i < parameters.length; i++) {
+            if (parameters[i].isAnnotationPresent(Param.class)) {
+                Param param = parameters[i].getAnnotation(Param.class);
+                String paramValue = request.getParameter(param.value());
+                parameterValues[i] = paramValue; // Assuming all parameters are strings for simplicity
+            }
+        }
+
+        return parameterValues;
     }
 }
 
