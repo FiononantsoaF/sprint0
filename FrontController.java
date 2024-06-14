@@ -1,176 +1,217 @@
 package mg.itu.prom16;
 
-import jakarta.servlet.ServletConfig;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.RequestDispatcher;
+import mg.itu.prom16.AnnotationController;
+import mg.itu.prom16.GetAnnotation;
+import mg.itu.prom16.Post;
+import mg.itu.prom16.Param;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import mg.itu.prom16.ModelView;  
+import java.io.*;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
+import java.net.URLDecoder;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import jakarta.servlet.RequestDispatcher;  // Import correct pour RequestDispatcher
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 public class FrontController extends HttpServlet {
-    private final Map<String, List<Mapping>> urlMapping = new HashMap<>();
+    private List<String> controller = new ArrayList<>();
+    private String controllerPackage;
+    boolean checked = false;
+    HashMap<String, Mapping> lien = new HashMap<>();
+    String error = "";
 
     @Override
-    public void init(ServletConfig config) throws ServletException {
-        super.init(config);
-        scanControllers(config);
-    }
-
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        processRequest(request, response);
-    }
-
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        processRequest(request, response);
-    }
-
-    private synchronized void processRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        try (PrintWriter out = response.getWriter()) {
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>FrontController</title>");
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1 style='color:blue'>URL actuelle :</h1>");
-            out.println("<p>" + request.getRequestURL() + "</p>");
-
-            String path = request.getPathInfo();
-            if (path == null) {
-                path = "/";
-            } else if (!path.startsWith("/")) {
-                path = "/" + path;
-            }
-
-            List<Mapping> matchedMappings = urlMapping.get(path);
-
-            if (matchedMappings != null && !matchedMappings.isEmpty()) {
-                out.println("<h2>Liste des contrôleurs et leurs méthodes annotées :</h2>");
-                out.println("<p>URL: " + path + "</p>");
-                for (Mapping mapping : matchedMappings) {
-                    // displayMappingDetails(out, mapping);
-                    handleMethodInvocation(out, mapping,request,response);
-                }
-            } else {
-                out.println("<h2 style='color:red'>Aucun mapping trouvé pour l'URL : " + path + "</h2>");
-            }
-            out.println("</body>");
-            out.println("</html>");
-        } catch (IOException e) {
-            e.printStackTrace();
+    public void init() throws ServletException {
+        super.init();
+        controllerPackage = getInitParameter("controller-package");
+        try {
+            this.scan();
+        } catch (Exception e) {
+            error = e.getMessage();
         }
     }
 
-    private void displayMappingDetails(PrintWriter out, Mapping mapping) {
-        out.println("<p>Classe: " + mapping.getControllerClass().getName() + "</p>");
-        out.println("<p>Méthode: " + mapping.getMethod().getName() + "</p>");
-    }
-    
-    private void handleMethodInvocation(PrintWriter out, Mapping mapping, HttpServletRequest request, HttpServletResponse response) {
-        try {
-            Object controllerInstance = mapping.getControllerClass().getDeclaredConstructor().newInstance();
-            Object result = mapping.getMethod().invoke(controllerInstance);
-    
-            if (result instanceof String) {
-                out.println("<p>Valeur de retour: " + result + "</p>");
-            } else if (result instanceof ModelView) {
-                ModelView mv = (ModelView) result;
-                String url = mv.getUrl();
-                Map<String, Object> data = mv.getData();
-                RequestDispatcher dispatcher = request.getRequestDispatcher(url);
-                if (dispatcher != null) {
-                    if (data != null && !data.isEmpty()) {
-                        for (Map.Entry<String, Object> entry : data.entrySet()) {
-                            request.setAttribute(entry.getKey(), entry.getValue());
+    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        PrintWriter out = response.getWriter();
+        String[] requestUrlSplitted = request.getRequestURL().toString().split("/");
+        String controllerSearched = requestUrlSplitted[requestUrlSplitted.length - 1];
+
+        response.setContentType("text/html");
+        if (!error.isEmpty()) {
+            out.println(error);
+        } else if (!lien.containsKey(controllerSearched)) {
+            out.println("<p>Méthode non trouvée.</p>");
+        } else {
+            try {
+                Mapping mapping = lien.get(controllerSearched);
+                Class<?> clazz = Class.forName(mapping.getClassName());
+                Method method = null;
+
+                // Find the method that matches the request type (GET or POST)
+                for (Method m : clazz.getDeclaredMethods()) {
+                    if (m.getName().equals(mapping.getMethodeName())) {
+                        if (request.getMethod().equalsIgnoreCase("GET") && m.isAnnotationPresent(GetAnnotation.class)) {
+                            method = m;
+                            break;
+                        } else if (request.getMethod().equalsIgnoreCase("POST") && m.isAnnotationPresent(Post.class)) {
+                            method = m;
+                            break;
                         }
                     }
+                }
+
+                if (method == null) {
+                    out.println("<p>Aucune méthode correspondante trouvée.</p>");
+                    return;
+                }
+
+                // Inject parameters
+                Object[] parameters = getMethodParameters(method, request);
+                
+                Object object = clazz.getDeclaredConstructor().newInstance();
+                Object returnValue = method.invoke(object, parameters);
+
+                if (returnValue instanceof String) {
+                    out.println("Méthode trouvée dans " + returnValue);
+                } else if (returnValue instanceof ModelView) {
+                    ModelView modelView = (ModelView) returnValue;
+                    for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
+                        request.setAttribute(entry.getKey(), entry.getValue());
+                    }
+                    RequestDispatcher dispatcher = request.getRequestDispatcher(modelView.getUrl());
                     dispatcher.forward(request, response);
                 } else {
-                    out.println("<p style='color:red'>Dispatcher non trouvé pour l'URL: " + url + "</p>");
+                    out.println("Type de données non reconnu");
                 }
-            } else {
-                out.println("<p>Valeur de retour non reconnue</p>");
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ServletException | IOException e) {
-            e.printStackTrace();
-            out.println("<p style='color:red'>Erreur lors de l'invocation de la méthode: " + e.getMessage() + "</p>");
         }
-        out.println("<hr>");
+        out.close();
     }
-    
-    
-    
-    // private void displayModelViewData(PrintWriter out, ModelView mv) {
-    //     out.println("<h3>Data:</h3>");
-    //     for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
-    //         out.println("<p>" + entry.getKey() + ": " + entry.getValue() + "</p>");
-    //     }
-    // }    
 
-    private void scanControllers(ServletConfig config) {
-        String controllerPackage = config.getInitParameter("controller-package");
-        System.out.println("Scanning package: " + controllerPackage);
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        processRequest(request, response);
+    }
 
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        processRequest(request, response);
+    }
+
+    public void scan() throws Exception {
         try {
-            String path = "WEB-INF/classes/" + controllerPackage.replace('.', '/');
-            File directory = new File(getServletContext().getRealPath(path));
-            if (directory.exists()) {
-                scanDirectory(directory, controllerPackage);
+            String classesPath = getServletContext().getRealPath("/WEB-INF/classes");
+            String decodedPath = URLDecoder.decode(classesPath, "UTF-8");
+            String packagePath = decodedPath + "\\" + controllerPackage.replace('.', '\\');
+            File packageDirectory = new File(packagePath);
+            if (!packageDirectory.exists() || !packageDirectory.isDirectory()) {
+                throw new Exception("Package n'existe pas");
             } else {
-                System.out.println("Directory does not exist: " + directory.getAbsolutePath());
+                File[] classFiles = packageDirectory.listFiles((dir, name) -> name.endsWith(".class"));
+                if (classFiles != null) {
+                    for (File classFile : classFiles) {
+                        String className = controllerPackage + '.'
+                                + classFile.getName().substring(0, classFile.getName().length() - 6);
+                        try {
+                            Class<?> classe = Class.forName(className);
+                            if (classe.isAnnotationPresent(AnnotationController.class)) {
+                                controller.add(classe.getSimpleName());
+
+                                Method[] methodes = classe.getDeclaredMethods();
+
+                                for (Method methode : methodes) {
+                                    if (methode.isAnnotationPresent(GetAnnotation.class)) {
+                                        Mapping map = new Mapping(className, methode.getName());
+                                        String valeur = methode.getAnnotation(GetAnnotation.class).value();
+                                        if (lien.containsKey(valeur)) {
+                                            throw new Exception("double url" + valeur);
+                                        } else {
+                                            lien.put(valeur, map);
+                                        }
+                                    } else if (methode.isAnnotationPresent(Post.class)) {
+                                        Mapping map = new Mapping(className, methode.getName());
+                                        String valeur = methode.getAnnotation(Post.class).value();
+                                        if (lien.containsKey(valeur)) {
+                                            throw new Exception("double url" + valeur);
+                                        } else {
+                                            lien.put(valeur, map);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            throw e;
+                        }
+
+                    }
+                } else {
+                    throw new Exception("le package est vide");
+                }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            throw e;
         }
     }
 
-    private void scanDirectory(File directory, String packageName) {
-        System.out.println("Scanning directory: " + directory.getAbsolutePath());
-    
-        for (File file : directory.listFiles()) {
-            if (file.isDirectory()) {
-                scanDirectory(file, packageName + "." + file.getName());
-            } else if (file.getName().endsWith(".class")) {
-                String className = packageName + '.' + file.getName().substring(0, file.getName().length() - 6);
-                try {
-                    Class<?> clazz = Class.forName(className);
-                    if (clazz.isAnnotationPresent(AnnotationController.class)) {
-                        boolean annotatedMethodFound = false;
-                        for (Method method : clazz.getDeclaredMethods()) {
-                            if (method.isAnnotationPresent(GetAnnotation.class)) {
-                                annotatedMethodFound = true;
-                                GetAnnotation requestMapping = method.getAnnotation(GetAnnotation.class);
-                                String urlKey = requestMapping.value();
-                                if (!urlKey.startsWith("/")) {
-                                    urlKey = "/" + urlKey;
-                                }
-                                urlMapping.computeIfAbsent(urlKey, k -> new ArrayList<>()).add(new Mapping(urlKey, clazz, method));
-                                System.out.println("Mapped URL: " + urlKey + " to " + clazz.getName() + "." + method.getName());
-                            }
-                        }
-                        if (!annotatedMethodFound) {
-                            System.out.println("Aucune méthode annotée trouvée dans la classe: " + className);
-                        }
-                    } else {
-                        System.out.println("La classe n'est pas annotée en tant que contrôleur: " + className);
-                    }
-                } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
-                }
+    private Object[] getMethodParameters(Method method, HttpServletRequest request) {
+        Parameter[] parameters = method.getParameters();
+        Object[] parameterValues = new Object[parameters.length];
+
+        for (int i = 0; i < parameters.length; i++) {
+            if (parameters[i].isAnnotationPresent(Param.class)) {
+                Param param = parameters[i].getAnnotation(Param.class);
+                String paramValue = request.getParameter(param.value());
+                parameterValues[i] = paramValue; // Assuming all parameters are strings for simplicity
             }
         }
+
+        return parameterValues;
     }
-    
+}
+
+class Mapping {
+    String className;
+    String methodeName;
+
+    public Mapping(String className, String methodeName) {
+        this.className = className;
+        this.methodeName = methodeName;
+    }
+
+    public String getClassName() {
+        return className;
+    }
+
+    public void setClassName(String className) {
+        this.className = className;
+    }
+
+    public String getMethodeName() {
+        return methodeName;
+    }
+
+    public void setMethodeName(String methodeName) {
+        this.methodeName = methodeName;
+    }
 }
