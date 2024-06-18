@@ -5,6 +5,9 @@ import mg.itu.prom16.GetAnnotation;
 import mg.itu.prom16.Post;
 import mg.itu.prom16.Param;
 
+import com.thoughtworks.paranamer.BytecodeReadingParanamer;
+import com.thoughtworks.paranamer.Paranamer;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -100,7 +103,7 @@ public class FrontController extends HttpServlet {
                 } else {
                     out.println("Type de données non reconnu");
                 }
-            } catch (Exception e) {
+            } catch (Exception e) { 
                 e.printStackTrace();
             }
         }
@@ -175,14 +178,31 @@ public class FrontController extends HttpServlet {
     }
 
     private Object[] getMethodParameters(Method method, HttpServletRequest request) {
-        Parameter[] parameters = method.getParameters();
-        Object[] parameterValues = new Object[parameters.length];
+        Paranamer paranamer = new BytecodeReadingParanamer();
+        String[] parameterNames = paranamer.lookupParameterNames(method);
 
-        for (int i = 0; i < parameters.length; i++) {
-            if (parameters[i].isAnnotationPresent(Param.class)) {
-                Param param = parameters[i].getAnnotation(Param.class);
-                String paramValue = request.getParameter(param.value());
-                parameterValues[i] = paramValue; // Assuming all parameters are strings for simplicity
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        Object[] parameterValues = new Object[parameterNames.length];
+
+        for (int i = 0; i < parameterNames.length; i++) {
+            Class<?> parameterType = parameterTypes[i];
+            String paramName = parameterNames[i];
+
+            if (parameterType.equals(HttpServletRequest.class)) {
+                parameterValues[i] = request;
+            } else if (parameterType.equals(HttpServletResponse.class)) {
+                parameterValues[i] = response;
+            } else {
+                // Assuming other parameters are annotated with @Param and are simple types
+                Param paramAnnotation = method.getParameterAnnotations()[i][0]; // Assuming only one annotation
+                String paramValue = request.getParameter(paramAnnotation.value());
+
+                // Convertir les types si nécessaire (ici, int pour la page)
+                if (parameterType.equals(int.class)) {
+                    parameterValues[i] = Integer.parseInt(paramValue);
+                } else {
+                    parameterValues[i] = paramValue;
+                }
             }
         }
 

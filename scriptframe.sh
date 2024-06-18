@@ -3,7 +3,9 @@ frame_dir="G:\S4\MrNaina\work\framework\sprint0"
 
 cd "$frame_dir" || exit
 
-javac -d . *.java
+javac -cp "lib/*" -d   *.java
+# javac -cp "libs/*" -d bin src/com/example/*.java
+
 
 jar cf FrontController.jar  mg
 jar cf AnnotationController.jar  mg
