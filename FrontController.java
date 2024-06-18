@@ -76,7 +76,7 @@ public class FrontController extends HttpServlet {
                         }
                     }
                 }
-
+ 
                 if (method == null) {
                     out.println("<p>Aucune méthode correspondante trouvée.</p>");
                     return;
