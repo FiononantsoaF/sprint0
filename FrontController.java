@@ -7,16 +7,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import mg.itu.prom16.AnnotationController;
-import mg.itu.prom16.GetAnnotation;
-import mg.itu.prom16.ModelView;
-import mg.itu.prom16.Param;
-import mg.itu.prom16.Post;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -59,7 +55,6 @@ public class FrontController extends HttpServlet {
                 Class<?> clazz = Class.forName(mapping.getClassName());
                 Method method = null;
 
-                // Find the method that matches the request type (GET or POST)
                 for (Method m : clazz.getDeclaredMethods()) {
                     if (m.getName().equals(mapping.getMethodeName())) {
                         if (request.getMethod().equalsIgnoreCase("GET") && m.isAnnotationPresent(GetAnnotation.class)) {
@@ -167,32 +162,61 @@ public class FrontController extends HttpServlet {
         }
     }
 
-    private Object[] getMethodParameters(Method method, HttpServletRequest request, HttpServletResponse response) {
-        Paranamer paranamer = new BytecodeReadingParanamer();
-        String[] parameterNames = paranamer.lookupParameterNames(method);
-
+    private Object[] getMethodParameters(Method method, HttpServletRequest request, HttpServletResponse response) throws Exception {
         Class<?>[] parameterTypes = method.getParameterTypes();
-        Object[] parameterValues = new Object[parameterNames.length];
+        Object[] parameterValues = new Object[parameterTypes.length];
 
-        for (int i = 0; i < parameterNames.length; i++) {
+        Annotation[][] parameterAnnotations = method.getParameterAnnotations();
+        for (int i = 0; i < parameterTypes.length; i++) {
             Class<?> parameterType = parameterTypes[i];
-            String paramName = parameterNames[i];
-
             if (parameterType.equals(HttpServletRequest.class)) {
                 parameterValues[i] = request;
             } else if (parameterType.equals(HttpServletResponse.class)) {
                 parameterValues[i] = response;
-            } else 
-                Annotation[] annotations = method.getParameterAnnotations()[i];
-                for (Annotation annotation : annotations) {
+            } else {
+                // Handle parameters annotated with @Param or @AnnotationClass
+                for (Annotation annotation : parameterAnnotations[i]) {
                     if (annotation instanceof Param) {
-                        String paramValue = request.getParameter(((Param) annotation).value());
+                        String paramName = ((Param) annotation).value();
+                        String paramValue = request.getParameter(paramName);
 
-                        // Convertir les types si nécessaire (ici, int pour la page)
+                        if (paramValue == null && parameterType.equals(int.class)) {
+                            throw new Exception("Paramètre " + paramName + " manquant");
+                        }
+
                         if (parameterType.equals(int.class)) {
                             parameterValues[i] = Integer.parseInt(paramValue);
-                        } else {
+                        } else if (parameterType.equals(double.class)) {
+                            parameterValues[i] = Double.parseDouble(paramValue);
+                        } else if (parameterType.equals(float.class)) {
+                            parameterValues[i] = Float.parseFloat(paramValue);
+                        } else if (parameterType.equals(boolean.class)) {
+                            parameterValues[i] = Boolean.parseBoolean(paramValue);
+                        } else if (parameterType.equals(String.class)) {
                             parameterValues[i] = paramValue;
+                        } else {
+                            // Handle object parameters annotated with @AnnotationClass
+                            Object parameterObject = parameterType.getDeclaredConstructor().newInstance();
+                            Field[] fields = parameterType.getDeclaredFields();
+                            for (Field field : fields) {
+                                if (field.isAnnotationPresent(AnnotationAttribut.class)) {
+                                    String fieldName = field.getAnnotation(AnnotationAttribut.class).value();
+                                    String fieldValue = request.getParameter(parameterType.getSimpleName().toLowerCase() + "." + fieldName);
+                                    field.setAccessible(true);
+                                    if (field.getType().equals(int.class)) {
+                                        field.set(parameterObject, Integer.parseInt(fieldValue));
+                                    } else if (field.getType().equals(double.class)) {
+                                        field.set(parameterObject, Double.parseDouble(fieldValue));
+                                    } else if (field.getType().equals(float.class)) {
+                                        field.set(parameterObject, Float.parseFloat(fieldValue));
+                                    } else if (field.getType().equals(boolean.class)) {
+                                        field.set(parameterObject, Boolean.parseBoolean(fieldValue));
+                                    } else if (field.getType().equals(String.class)) {
+                                        field.set(parameterObject, fieldValue);
+                                    }
+                                }
+                            }
+                            parameterValues[i] = parameterObject;
                         }
                     }
                 }
