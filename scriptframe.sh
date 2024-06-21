@@ -1,24 +1,21 @@
 #!/bin/sh
-frame_dir="G:\S4\MrNaina\work\framework\sprint0"
 
+# Define directories
+frame_dir="G:\S4\MrNaina\work\framework\sprint0"
+lib_dir="G:\S4\MrNaina\work\framework\sprint0\lib"
+test_lib_dir="G:\S4\MrNaina\work\testFramework\test\lib"
+
+# Change to the frame directory
 cd "$frame_dir" || exit
 
-javac -cp "lib/*" -d   *.java
-# javac -cp "libs/*" -d bin src/com/example/*.java
+# Compile Java files with necessary libraries in the classpath
+javac -d "$frame_dir" -cp "$lib_dir/*" "$frame_dir"/*.java
 
+# Create JAR files
+for jar_file in FrontController AnnotationController GetAnnotation ModelView Post Param; do
+    jar cf "${jar_file}.jar" mg
+    mv "${jar_file}.jar" "$test_lib_dir"
+done
 
-jar cf FrontController.jar  mg
-jar cf AnnotationController.jar  mg
-jar cf GetAnnotation.jar  mg
-jar cf ModelView.jar  mg
-jar cf Post.jar  mg
-jar cf Param.jar  mg
-
-mv FrontController.jar "G:\S4\MrNaina\work\testFramework\test\lib"
-mv AnnotationController.jar "G:\S4\MrNaina\work\testFramework\test\lib"
-mv GetAnnotation.jar "G:\S4\MrNaina\work\testFramework\test\lib"
-mv ModelView.jar "G:\S4\MrNaina\work\testFramework\test\lib"
-mv Post.jar "G:\S4\MrNaina\work\testFramework\test\lib"
-mv Param.jar "G:\S4\MrNaina\work\testFramework\test\lib"
+# Wait for 60 seconds
 sleep 60
-

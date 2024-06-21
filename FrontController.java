@@ -1,43 +1,35 @@
 package mg.itu.prom16;
 
-import mg.itu.prom16.AnnotationController;
-import mg.itu.prom16.GetAnnotation;
-import mg.itu.prom16.Post;
-import mg.itu.prom16.Param;
-
 import com.thoughtworks.paranamer.BytecodeReadingParanamer;
 import com.thoughtworks.paranamer.Paranamer;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import mg.itu.prom16.AnnotationController;
+import mg.itu.prom16.GetAnnotation;
+import mg.itu.prom16.ModelView;
+import mg.itu.prom16.Param;
+import mg.itu.prom16.Post;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import mg.itu.prom16.ModelView;  
-import java.io.*;
-import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
-import java.net.URLDecoder;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
-import jakarta.servlet.RequestDispatcher;  // Import correct pour RequestDispatcher
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 public class FrontController extends HttpServlet {
     private List<String> controller = new ArrayList<>();
     private String controllerPackage;
-    boolean checked = false;
-    HashMap<String, Mapping> lien = new HashMap<>();
-    String error = "";
+    private boolean checked = false;
+    private HashMap<String, Mapping> lien = new HashMap<>();
+    private String error = "";
 
     @Override
     public void init() throws ServletException {
@@ -79,15 +71,13 @@ public class FrontController extends HttpServlet {
                         }
                     }
                 }
- 
+
                 if (method == null) {
                     out.println("<p>Aucune méthode correspondante trouvée.</p>");
                     return;
                 }
+                Object[] parameters = getMethodParameters(method, request, response);
 
-                // Inject parameters
-                Object[] parameters = getMethodParameters(method, request);
-                
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object, parameters);
 
@@ -103,7 +93,7 @@ public class FrontController extends HttpServlet {
                 } else {
                     out.println("Type de données non reconnu");
                 }
-            } catch (Exception e) { 
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -177,7 +167,7 @@ public class FrontController extends HttpServlet {
         }
     }
 
-    private Object[] getMethodParameters(Method method, HttpServletRequest request) {
+    private Object[] getMethodParameters(Method method, HttpServletRequest request, HttpServletResponse response) {
         Paranamer paranamer = new BytecodeReadingParanamer();
         String[] parameterNames = paranamer.lookupParameterNames(method);
 
@@ -194,14 +184,18 @@ public class FrontController extends HttpServlet {
                 parameterValues[i] = response;
             } else {
                 // Assuming other parameters are annotated with @Param and are simple types
-                Param paramAnnotation = method.getParameterAnnotations()[i][0]; // Assuming only one annotation
-                String paramValue = request.getParameter(paramAnnotation.value());
+                Annotation[] annotations = method.getParameterAnnotations()[i];
+                for (Annotation annotation : annotations) {
+                    if (annotation instanceof Param) {
+                        String paramValue = request.getParameter(((Param) annotation).value());
 
-                // Convertir les types si nécessaire (ici, int pour la page)
-                if (parameterType.equals(int.class)) {
-                    parameterValues[i] = Integer.parseInt(paramValue);
-                } else {
-                    parameterValues[i] = paramValue;
+                        // Convertir les types si nécessaire (ici, int pour la page)
+                        if (parameterType.equals(int.class)) {
+                            parameterValues[i] = Integer.parseInt(paramValue);
+                        } else {
+                            parameterValues[i] = paramValue;
+                        }
+                    }
                 }
             }
         }
@@ -211,8 +205,8 @@ public class FrontController extends HttpServlet {
 }
 
 class Mapping {
-    String className;
-    String methodeName;
+    private String className;
+    private String methodeName;
 
     public Mapping(String className, String methodeName) {
         this.className = className;
