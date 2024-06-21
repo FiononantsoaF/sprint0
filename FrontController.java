@@ -11,12 +11,10 @@ import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
-import mg.itu.prom16.ModelView;  
+import mg.itu.prom16.ModelView; 
+import mg.itu.prom16.AnnotationClass;
+import java.lang.reflect.Field;  
 import java.io.*;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -174,12 +172,31 @@ public class FrontController extends HttpServlet {
         }
     }
 
-    private Object[] getMethodParameters(Method method, HttpServletRequest request) {
+    private Object[] getMethodParameters(Method method, HttpServletRequest request) throws Exception {
         Parameter[] parameters = method.getParameters();
         Object[] parameterValues = new Object[parameters.length];
 
+        Enumeration<String> params = request.getParameterNames();
+        Map<String, String> paramMap = new HashMap<>();
+
+        while (params.hasMoreElements()) {
+            String paramName = params.nextElement();
+            paramMap.put(paramName, request.getParameter(paramName));
+        }
+
         for (int i = 0; i < parameters.length; i++) {
-            if (parameters[i].isAnnotationPresent(Param.class)) {
+            if (parameters[i].isAnnotationPresent(AnnotationClass.class)) {
+                Class<?> paramType = parameters[i].getType();
+                Object paramObject = paramType.getDeclaredConstructor().newInstance();
+                for (Field field : paramType.getDeclaredFields()) {
+                    String paramName = field.getName();
+                    if (paramMap.containsKey(paramName)) {
+                        field.setAccessible(true);
+                        field.set(paramObject, paramMap.get(paramName));
+                    }
+                }
+                parameterValues[i] = paramObject;
+            } else if (parameters[i].isAnnotationPresent(Param.class)) {
                 Param param = parameters[i].getAnnotation(Param.class);
                 String paramValue = request.getParameter(param.value());
                 parameterValues[i] = paramValue; // Assuming all parameters are strings for simplicity
