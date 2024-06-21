@@ -182,8 +182,7 @@ public class FrontController extends HttpServlet {
                 parameterValues[i] = request;
             } else if (parameterType.equals(HttpServletResponse.class)) {
                 parameterValues[i] = response;
-            } else {
-                // Assuming other parameters are annotated with @Param and are simple types
+            } else 
                 Annotation[] annotations = method.getParameterAnnotations()[i];
                 for (Annotation annotation : annotations) {
                     if (annotation instanceof Param) {
