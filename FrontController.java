@@ -1,31 +1,23 @@
 package mg.itu.prom16;
 
-import mg.itu.prom16.AnnotationController;
-import mg.itu.prom16.GetAnnotation;
-import mg.itu.prom16.Post;
-import mg.itu.prom16.Param;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.net.URLDecoder;
-
-import mg.itu.prom16.ModelView; 
-import mg.itu.prom16.AnnotationClass;
-import java.lang.reflect.Field;  
-import java.io.*;
-import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
-import java.net.URLDecoder;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
-import jakarta.servlet.RequestDispatcher;  // Import correct pour RequestDispatcher
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.net.URLDecoder;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class FrontController extends HttpServlet {
     private List<String> controller = new ArrayList<>();
@@ -81,8 +73,14 @@ public class FrontController extends HttpServlet {
                 }
 
                 // Inject parameters
-                Object[] parameters = getMethodParameters(method, request);
-                
+                Object[] parameters = null;
+                try {
+                    parameters = getMethodParameters(method, request);
+                } catch (Exception e) {
+                    out.println("<p>Error: " + e.getMessage() + "</p>");
+                    return;
+                }
+
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object, parameters);
 
@@ -199,7 +197,15 @@ public class FrontController extends HttpServlet {
             } else if (parameters[i].isAnnotationPresent(Param.class)) {
                 Param param = parameters[i].getAnnotation(Param.class);
                 String paramValue = request.getParameter(param.value());
-                parameterValues[i] = paramValue; // Assuming all parameters are strings for simplicity
+                if (parameters[i].getType() == int.class) {
+                    parameterValues[i] = Integer.parseInt(paramValue);
+                } else if (parameters[i].getType() == double.class) {
+                    parameterValues[i] = Double.parseDouble(paramValue);
+                } else {
+                    parameterValues[i] = paramValue; // Assuming all other parameters are strings
+                }
+            } else {
+                throw new Exception("ETU2501 METHODE NON ANNOTER: " + parameters[i].getName());
             }
         }
 
