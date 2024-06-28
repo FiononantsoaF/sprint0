@@ -81,8 +81,19 @@ public class FrontController extends HttpServlet {
                     return;
                 }
 
+                HttpSession httpSession = request.getSession();
+                CustomSession customSession = CustomSession.fromHttpSession(httpSession);
+                for (int i = 0; i < parameters.length; i++) {
+                    if (parameters[i] instanceof CustomSession) {
+                        parameters[i] = customSession;
+                    }
+                }
+
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object, parameters);
+                customSession.toHttpSession(httpSession);
+                // Object object = clazz.getDeclaredConstructor().newInstance();
+                // Object returnValue = method.invoke(object, parameters);
 
                 if (returnValue instanceof String) {
                     out.println("Méthode trouvée dans " + returnValue);
@@ -205,11 +216,25 @@ public class FrontController extends HttpServlet {
                     parameterValues[i] = paramValue; // Assuming all other parameters are strings
                 }
             } else {
+
                 throw new Exception("ETU2501 METHODE NON ANNOTER: " + parameters[i].getName());
             }
         }
 
         return parameterValues;
+    }
+
+    public static CustomSession fromHttpSession(HttpSession session) {
+        CustomSession customSession = new CustomSession();
+        for (String key : session.getAttributeNames()) {
+            customSession.add(key, session.getAttribute(key));
+        }
+        return customSession;
+    }
+    public void toHttpSession(HttpSession session) {
+        for (String key : values.keySet()) {
+            session.setAttribute(key, values.get(key));
+        }
     }
 }
 
