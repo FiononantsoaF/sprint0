@@ -12,7 +12,7 @@ cd "$frame_dir" || exit
 javac -d "$frame_dir" -cp "$lib_dir/*" "$frame_dir"/*.java
 
 # Create JAR files
-for jar_file in FrontController AnnotationController GetAnnotation ModelView Post Param AnnotationClass AnnotationAttribut CustomSession; do
+for jar_file in FrontController AnnotationController GetAnnotation ModelView Post Param AnnotationClass AnnotationAttribut ; do
     jar cf "${jar_file}.jar" mg
     mv "${jar_file}.jar" "$test_lib_dir"
 done
