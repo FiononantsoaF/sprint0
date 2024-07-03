@@ -14,5 +14,4 @@ for jar_file in FrontController AnnotationController GetAnnotation ModelView Pos
     mv "${jar_file}.jar" "$test_lib_dir"
 done
 
-# Wait for 60 seconds
 sleep 60
