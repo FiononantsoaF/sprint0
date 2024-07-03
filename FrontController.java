@@ -1,31 +1,39 @@
 package mg.itu.prom16;
 
-import com.thoughtworks.paranamer.BytecodeReadingParanamer;
-import com.thoughtworks.paranamer.Paranamer;
-import jakarta.servlet.RequestDispatcher;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import mg.itu.prom16.AnnotationController;
+import mg.itu.prom16.GetAnnotation;
+import mg.itu.prom16.Post;
+import mg.itu.prom16.Param;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.net.URLDecoder;
+
+import mg.itu.prom16.ModelView; 
+import mg.itu.prom16.AnnotationClass;
+import java.lang.reflect.Field;  
+import java.io.*;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import jakarta.servlet.RequestDispatcher; 
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 public class FrontController extends HttpServlet {
     private List<String> controller = new ArrayList<>();
     private String controllerPackage;
-    private boolean checked = false;
-    private HashMap<String, Mapping> lien = new HashMap<>();
-    private String error = "";
+    boolean checked = false;
+    HashMap<String, Mapping> lien = new HashMap<>();
+    String error = "";
 
     @Override
     public void init() throws ServletException {
@@ -55,6 +63,7 @@ public class FrontController extends HttpServlet {
                 Class<?> clazz = Class.forName(mapping.getClassName());
                 Method method = null;
 
+                // Find the method that matches the request type (GET or POST)
                 for (Method m : clazz.getDeclaredMethods()) {
                     if (m.getName().equals(mapping.getMethodeName())) {
                         if (request.getMethod().equalsIgnoreCase("GET") && m.isAnnotationPresent(GetAnnotation.class)) {
@@ -71,8 +80,8 @@ public class FrontController extends HttpServlet {
                     out.println("<p>Aucune méthode correspondante trouvée.</p>");
                     return;
                 }
-                Object[] parameters = getMethodParameters(method, request, response);
-
+                Object[] parameters = getMethodParameters(method, request);
+                
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object, parameters);
 
@@ -162,74 +171,48 @@ public class FrontController extends HttpServlet {
         }
     }
 
-    private Object[] getMethodParameters(Method method, HttpServletRequest request, HttpServletResponse response) throws Exception {
-        Class<?>[] parameterTypes = method.getParameterTypes();
-        Object[] parameterValues = new Object[parameterTypes.length];
-
-        Annotation[][] parameterAnnotations = method.getParameterAnnotations();
-        for (int i = 0; i < parameterTypes.length; i++) {
-            Class<?> parameterType = parameterTypes[i];
-            if (parameterType.equals(HttpServletRequest.class)) {
-                parameterValues[i] = request;
-            } else if (parameterType.equals(HttpServletResponse.class)) {
-                parameterValues[i] = response;
-            } else {
-                // Handle parameters annotated with @Param or @AnnotationClass
-                for (Annotation annotation : parameterAnnotations[i]) {
-                    if (annotation instanceof Param) {
-                        String paramName = ((Param) annotation).value();
-                        String paramValue = request.getParameter(paramName);
-
-                        if (paramValue == null && parameterType.equals(int.class)) {
-                            throw new Exception("Paramètre " + paramName + " manquant");
-                        }
-
-                        if (parameterType.equals(int.class)) {
-                            parameterValues[i] = Integer.parseInt(paramValue);
-                        } else if (parameterType.equals(double.class)) {
-                            parameterValues[i] = Double.parseDouble(paramValue);
-                        } else if (parameterType.equals(float.class)) {
-                            parameterValues[i] = Float.parseFloat(paramValue);
-                        } else if (parameterType.equals(boolean.class)) {
-                            parameterValues[i] = Boolean.parseBoolean(paramValue);
-                        } else if (parameterType.equals(String.class)) {
-                            parameterValues[i] = paramValue;
-                        } else {
-                            // Handle object parameters annotated with @AnnotationClass
-                            Object parameterObject = parameterType.getDeclaredConstructor().newInstance();
-                            Field[] fields = parameterType.getDeclaredFields();
-                            for (Field field : fields) {
-                                if (field.isAnnotationPresent(AnnotationAttribut.class)) {
-                                    String fieldName = field.getAnnotation(AnnotationAttribut.class).value();
-                                    String fieldValue = request.getParameter(parameterType.getSimpleName().toLowerCase() + "." + fieldName);
-                                    field.setAccessible(true);
-                                    if (field.getType().equals(int.class)) {
-                                        field.set(parameterObject, Integer.parseInt(fieldValue));
-                                    } else if (field.getType().equals(double.class)) {
-                                        field.set(parameterObject, Double.parseDouble(fieldValue));
-                                    } else if (field.getType().equals(float.class)) {
-                                        field.set(parameterObject, Float.parseFloat(fieldValue));
-                                    } else if (field.getType().equals(boolean.class)) {
-                                        field.set(parameterObject, Boolean.parseBoolean(fieldValue));
-                                    } else if (field.getType().equals(String.class)) {
-                                        field.set(parameterObject, fieldValue);
-                                    }
-                                }
-                            }
-                            parameterValues[i] = parameterObject;
-                        }
-                    }
-                }
+    private Object createRequestBodyParameter(Parameter parameter, Map<String, String[]> paramMap) throws Exception {
+        Class<?> paramType = parameter.getType();
+        Object paramObject = paramType.getDeclaredConstructor().newInstance();
+        for (Field field : paramType.getDeclaredFields()) {
+            String paramName = field.getName();
+            if (paramMap.containsKey(paramName)) {
+                String paramValue = paramMap.get(paramName)[0]; // Assuming single value for simplicity
+                field.setAccessible(true);
+                field.set(paramObject, paramValue);
             }
         }
-
+        return paramObject;
+    }
+    
+    private Object[] getMethodParameters(Method method, HttpServletRequest request) throws Exception {
+        Parameter[] parameters = method.getParameters();
+        Object[] parameterValues = new Object[parameters.length];
+    
+        HttpSession session = request.getSession();
+    
+        for (int i = 0; i < parameters.length; i++) {
+            Parameter parameter = parameters[i];
+            if (parameter.getType() == CustomSession.class) {
+                parameterValues[i] = new CustomSession(session);
+            } else if (parameter.isAnnotationPresent(AnnotationClass.class)) {
+                parameterValues[i] = createRequestBodyParameter(parameter, request.getParameterMap());
+            } else if (parameter.isAnnotationPresent(Param.class)) {
+                Param param = parameter.getAnnotation(Param.class);
+                parameterValues[i] = request.getParameter(param.value()); 
+            } else {
+                throw new IllegalArgumentException("Paramètre non supporté pour cette méthode");
+            }
+        }
+    
         return parameterValues;
     }
+    
 }
 
 class Mapping {
-    private String className;
-    private String methodeName;
+    String className;
+    String methodeName;
 
     public Mapping(String className, String methodeName) {
         this.className = className;
