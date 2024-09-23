@@ -1,4 +1,5 @@
 package mg.itu.prom16;
+import com.google.gson.Gson;
 
 import mg.itu.prom16.AnnotationController;
 import mg.itu.prom16.GetAnnotation;
@@ -21,7 +22,7 @@ import java.lang.reflect.Method;
 import java.net.URLDecoder;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import jakarta.servlet.RequestDispatcher; 
+import javax.servlet.RequestDispatcher; 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -51,7 +52,7 @@ public class FrontController extends HttpServlet {
         PrintWriter out = response.getWriter();
         String[] requestUrlSplitted = request.getRequestURL().toString().split("/");
         String controllerSearched = requestUrlSplitted[requestUrlSplitted.length - 1];
-
+    
         response.setContentType("text/html");
         if (!error.isEmpty()) {
             out.println(error);
@@ -62,8 +63,7 @@ public class FrontController extends HttpServlet {
                 Mapping mapping = lien.get(controllerSearched);
                 Class<?> clazz = Class.forName(mapping.getClassName());
                 Method method = null;
-
-                // Find the method that matches the request type (GET or POST)
+    
                 for (Method m : clazz.getDeclaredMethods()) {
                     if (m.getName().equals(mapping.getMethodeName())) {
                         if (request.getMethod().equalsIgnoreCase("GET") && m.isAnnotationPresent(GetAnnotation.class)) {
@@ -75,34 +75,52 @@ public class FrontController extends HttpServlet {
                         }
                     }
                 }
-
+    
                 if (method == null) {
                     out.println("<p>Aucune méthode correspondante trouvée.</p>");
                     return;
                 }
+    
                 Object[] parameters = getMethodParameters(method, request);
-                
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object, parameters);
-
-                if (returnValue instanceof String) {
-                    out.println("Méthode trouvée dans " + returnValue);
-                } else if (returnValue instanceof ModelView) {
-                    ModelView modelView = (ModelView) returnValue;
-                    for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
-                        request.setAttribute(entry.getKey(), entry.getValue());
+    
+                // Vérifier l'annotation RestAPI
+                if (method.isAnnotationPresent(Restapi.class)) {
+                    response.setContentType("application/json");
+                    response.setCharacterEncoding("UTF-8");
+    
+                    Gson gson = new Gson();
+                    if (returnValue instanceof ModelView) {
+                        // Si c'est un ModelView, convertir uniquement l'attribut "data"
+                        ModelView modelView = (ModelView) returnValue;
+                        response.getWriter().write(gson.toJson(modelView.getData()));
+                    } else {
+                        // Si ce n'est pas un ModelView, convertir tout le résultat en JSON
+                        response.getWriter().write(gson.toJson(returnValue));
                     }
-                    RequestDispatcher dispatcher = request.getRequestDispatcher(modelView.getUrl());
-                    dispatcher.forward(request, response);
                 } else {
-                    out.println("Type de données non reconnu");
+                    // Comportement existant si l'annotation n'est pas présente
+                    if (returnValue instanceof String) {
+                        out.println("Méthode trouvée dans " + returnValue);
+                    } else if (returnValue instanceof ModelView) {
+                        ModelView modelView = (ModelView) returnValue;
+                        for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
+                            request.setAttribute(entry.getKey(), entry.getValue());
+                        }
+                        RequestDispatcher dispatcher = request.getRequestDispatcher(modelView.getUrl());
+                        dispatcher.forward(request, response);
+                    } else {
+                        out.println("Type de données non reconnu");
+                    }
                 }
+    
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         out.close();
-    }
+    }    
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
