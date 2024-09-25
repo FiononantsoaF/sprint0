@@ -88,30 +88,34 @@ public class FrontController extends HttpServlet {
                 if (method.isAnnotationPresent(Restapi.class)) {
                     response.setContentType("application/json");
                     response.setCharacterEncoding("UTF-8");
-    
+                
                     Gson gson = new Gson();
                     if (returnValue instanceof ModelView) {
-                        // Si c'est un ModelView, convertir uniquement l'attribut "data"
                         ModelView modelView = (ModelView) returnValue;
                         response.getWriter().write(gson.toJson(modelView.getData()));
                     } else {
                         response.getWriter().write(gson.toJson(returnValue));
                     }
                 } else {
-                    // Comportement existant si l'annotation n'est pas présente
-                    if (returnValue instanceof String) {
-                        out.println("Méthode trouvée dans " + returnValue);
-                    } else if (returnValue instanceof ModelView) {
+                    // Même si l'annotation Restapi n'est pas présente, renvoyer les données en JSON
+                    response.setContentType("application/json");
+                    response.setCharacterEncoding("UTF-8");
+                
+                    Gson gson = new Gson();
+                    if (returnValue instanceof ModelView) {
                         ModelView modelView = (ModelView) returnValue;
-                        for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
-                            request.setAttribute(entry.getKey(), entry.getValue());
-                        }
-                        RequestDispatcher dispatcher = request.getRequestDispatcher(modelView.getUrl());
-                        dispatcher.forward(request, response);
+                        response.getWriter().write(gson.toJson(modelView.getData()));
+                    } else if (returnValue instanceof String) {
+                        // Si la méthode retourne un String, on l'enveloppe aussi dans du JSON
+                        Map<String, String> result = new HashMap<>();
+                        result.put("message", (String) returnValue);
+                        response.getWriter().write(gson.toJson(result));
                     } else {
-                        out.println("Type de données non reconnu");
+                        // Si c'est un autre type de retour, convertir directement en JSON
+                        response.getWriter().write(gson.toJson(returnValue));
                     }
                 }
+                
     
             } catch (Exception e) {
                 e.printStackTrace();
