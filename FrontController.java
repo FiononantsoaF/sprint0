@@ -22,7 +22,7 @@ import java.lang.reflect.Method;
 import java.net.URLDecoder;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import javax.servlet.RequestDispatcher; 
+import jakarta.servlet.RequestDispatcher; 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -85,7 +85,6 @@ public class FrontController extends HttpServlet {
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object, parameters);
     
-                // Vérifier l'annotation RestAPI
                 if (method.isAnnotationPresent(Restapi.class)) {
                     response.setContentType("application/json");
                     response.setCharacterEncoding("UTF-8");
@@ -96,7 +95,6 @@ public class FrontController extends HttpServlet {
                         ModelView modelView = (ModelView) returnValue;
                         response.getWriter().write(gson.toJson(modelView.getData()));
                     } else {
-                        // Si ce n'est pas un ModelView, convertir tout le résultat en JSON
                         response.getWriter().write(gson.toJson(returnValue));
                     }
                 } else {
