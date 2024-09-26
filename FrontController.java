@@ -97,7 +97,6 @@ public class FrontController extends HttpServlet {
                         response.getWriter().write(gson.toJson(returnValue));
                     }
                 } else {
-                    // Même si l'annotation Restapi n'est pas présente, renvoyer les données en JSON
                     response.setContentType("application/json");
                     response.setCharacterEncoding("UTF-8");
                 
@@ -106,12 +105,12 @@ public class FrontController extends HttpServlet {
                         ModelView modelView = (ModelView) returnValue;
                         response.getWriter().write(gson.toJson(modelView.getData()));
                     } else if (returnValue instanceof String) {
-                        // Si la méthode retourne un String, on l'enveloppe aussi dans du JSON
+            
                         Map<String, String> result = new HashMap<>();
                         result.put("message", (String) returnValue);
                         response.getWriter().write(gson.toJson(result));
                     } else {
-                        // Si c'est un autre type de retour, convertir directement en JSON
+                        
                         response.getWriter().write(gson.toJson(returnValue));
                     }
                 }
