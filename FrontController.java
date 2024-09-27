@@ -85,43 +85,42 @@ public class FrontController extends HttpServlet {
                 Object object = clazz.getDeclaredConstructor().newInstance();
                 Object returnValue = method.invoke(object, parameters);
     
+                // Vérifier l'annotation RestAPI
                 if (method.isAnnotationPresent(Restapi.class)) {
                     response.setContentType("application/json");
                     response.setCharacterEncoding("UTF-8");
-                
+    
                     Gson gson = new Gson();
                     if (returnValue instanceof ModelView) {
+                        // Si c'est un ModelView, convertir uniquement l'attribut "data"
                         ModelView modelView = (ModelView) returnValue;
                         response.getWriter().write(gson.toJson(modelView.getData()));
                     } else {
+                        // Si ce n'est pas un ModelView, convertir tout le résultat en JSON
                         response.getWriter().write(gson.toJson(returnValue));
                     }
                 } else {
-                    response.setContentType("application/json");
-                    response.setCharacterEncoding("UTF-8");
-                
-                    Gson gson = new Gson();
-                    if (returnValue instanceof ModelView) {
+                    // Comportement existant si l'annotation n'est pas présente
+                    if (returnValue instanceof String) {
+                        out.println("Méthode trouvée dans " + returnValue);
+                    } else if (returnValue instanceof ModelView) {
                         ModelView modelView = (ModelView) returnValue;
-                        response.getWriter().write(gson.toJson(modelView.getData()));
-                    } else if (returnValue instanceof String) {
-            
-                        Map<String, String> result = new HashMap<>();
-                        result.put("message", (String) returnValue);
-                        response.getWriter().write(gson.toJson(result));
+                        for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
+                            request.setAttribute(entry.getKey(), entry.getValue());
+                        }
+                        RequestDispatcher dispatcher = request.getRequestDispatcher(modelView.getUrl());
+                        dispatcher.forward(request, response);
                     } else {
-                        
-                        response.getWriter().write(gson.toJson(returnValue));
+                        out.println("Type de données non reconnu");
                     }
                 }
-                
     
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         out.close();
-    }    
+    }  
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
