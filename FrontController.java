@@ -229,12 +229,12 @@ public class FrontController extends HttpServlet {
 }
 
 class Mapping {
-    String className;
-    String methodeName;
+    private String className;
+    private List<VerbAction> verbActions; 
 
-    public Mapping(String className, String methodeName) {
+    public Mapping(String className) {
         this.className = className;
-        this.methodeName = methodeName;
+        this.verbActions = new ArrayList<>(); 
     }
 
     public String getClassName() {
@@ -245,11 +245,28 @@ class Mapping {
         this.className = className;
     }
 
-    public String getMethodeName() {
-        return methodeName;
+    public List<VerbAction> getVerbActions() {
+        return verbActions;
     }
 
-    public void setMethodeName(String methodeName) {
-        this.methodeName = methodeName;
+    public void addVerbAction(VerbAction verbAction) {
+        this.verbActions.add(verbAction);
     }
-}
+
+    public VerbAction getVerbActionByVerb(String verb) {
+        for (VerbAction action : verbActions) {
+            if (action.getVerb().equalsIgnoreCase(verb)) {
+                return action;
+            }
+        }
+        return null;  
+    }
+
+    @Override
+    public String toString() {
+        return "Mapping{" +
+                "className='" + className + '\'' +
+                ", verbActions=" + verbActions +
+                '}';
+    }
+}    
