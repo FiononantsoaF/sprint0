@@ -8,7 +8,7 @@ cd "$frame_dir" || exit
 
 # Compile Java files with necessary libraries in the classpath
 javac -d "$frame_dir" -cp "$lib_dir/*" "$frame_dir"/*.java
-for jar_file in FrontController AnnotationController GetAnnotation ModelView Post Param AnnotationClass Restapi AnnotationAttribut CustomSession ; do
+for jar_file in FrontController AnnotationController GetAnnotation ModelView Post Param AnnotationClass Restapi AnnotationAttribut CustomSession VerbAction; do
     jar cf "${jar_file}.jar" mg
     mv "${jar_file}.jar" "$test_lib_dir"
 done
