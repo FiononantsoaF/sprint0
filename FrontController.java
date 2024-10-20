@@ -127,9 +127,29 @@ public class FrontController extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        if (request.getContentType() != null && request.getContentType().startsWith("multipart/form-data")) {
+            handleFileUpload(request, response);
+        } else {
+            processRequest(request, response);
+        }
     }
 
+    private void handleFileUpload(HttpServletRequest request, HttpServletResponse response)
+            throws IOException, ServletException {
+        PrintWriter out = response.getWriter();
+        InputStream inputStream = request.getInputStream();
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        File file = new File("chemin/vers/le/dossier/upload", "nom_du_fichier.txt"); 
+        FileOutputStream fileOutputStream = new FileOutputStream(file);
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            fileOutputStream.write(buffer, 0, bytesRead);
+        }
+
+        fileOutputStream.close();
+        inputStream.close();
+        out.println("Fichier uploadé avec succès : " + file.getAbsolutePath());
+    }
     public void scan() throws Exception {
         try {
             String classesPath = getServletContext().getRealPath("/WEB-INF/classes");
