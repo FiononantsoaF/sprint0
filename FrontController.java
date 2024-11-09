@@ -1,53 +1,66 @@
 package mg.itu.prom16;
 import com.google.gson.Gson;
 
-import mg.itu.prom16.AnnotationController;
 import mg.itu.prom16.GetAnnotation;
+import mg.itu.prom16.AnnotationController;
 import mg.itu.prom16.Post;
 import mg.itu.prom16.Param;
 import mg.itu.prom16.VerbAction;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
-import java.net.URLDecoder;
+import java.net.URISyntaxException;
+import java.lang.reflect.Field;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import mg.itu.prom16.ModelView; 
-import mg.itu.prom16.AnnotationClass;
-import java.lang.reflect.Field;  
-import java.io.*;
-import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
-import java.net.URLDecoder;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
-import jakarta.servlet.RequestDispatcher; 
+import jakarta.servlet.http.Part;
+
+import com.google.gson.Gson;
+import jakarta.servlet.annotation.MultipartConfig;
+import jakarta.servlet.http.HttpSession;
+
+import jakarta.servlet.ServletConfig;
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
+@MultipartConfig
 public class FrontController extends HttpServlet {
-    private List<String> controller = new ArrayList<>();
+    private List<String> controllerNames = new ArrayList<>();
     private String controllerPackage;
-    boolean checked = false;
-    HashMap<String, Mapping> lien = new HashMap<>();
+    HashMap<String, Mapping> urlMaping = new HashMap<>();
     String error = "";
 
     @Override
-    public void init() throws ServletException {
-        super.init();
-        controllerPackage = getInitParameter("controller-package");
+    public void init(ServletConfig config) throws ServletException {
+        super.init(config);
+        controllerPackage = config.getInitParameter("controller-package"); // Recuperation du nom du package
         try {
-            this.scan();
+            // Verification si le packageControllerName n'existe pas
+            if (controllerPackage == null || controllerPackage.isEmpty()) {
+                throw new Exception("Le nom du package du contrôleur n'est pas specifie.");
+            }
+            // Scanne les contrôleurs dans le package
+            scanControllers(controllerPackage);
         } catch (Exception e) {
             error = e.getMessage();
         }
     }
-
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
         throws Exception {
         StringBuffer requestURL = request.getRequestURL();
@@ -171,18 +184,25 @@ public class FrontController extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        try {
+            processRequest(request, response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "An internal error occurred");
+        }
     }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        if (request.getContentType() != null && request.getContentType().startsWith("multipart/form-data")) {
-            handleFileUpload(request, response);
-        } else {
+        try {
             processRequest(request, response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "An internal error occurred");
         }
     }
+
     public static Object convertParameter(String value, Class<?> type) {
         if (value == null) {
             return null;
@@ -200,26 +220,26 @@ public class FrontController extends HttpServlet {
         return null;
     }
 
-    private void scanControllers(String packageName) throws Exception {
+    private void scanControllers(String controllerPackage) throws Exception {
         try {
             // Charger le package et parcourir les classes
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            String path = packageName.replace('.', '/');
+            String path = controllerPackage.replace('.', '/');
             URL resource = classLoader.getResource(path);
 
             // Verification si le package n'existe pas
             if (resource == null) {
-                throw new Exception("Le package specifie n'existe pas: " + packageName);
+                throw new Exception("Le package specifie n'existe pas: " + controllerPackage);
             }
 
             Path classPath = Paths.get(resource.toURI());
             Files.walk(classPath)
                     .filter(f -> f.toString().endsWith(".class"))
                     .forEach(f -> {
-                        String className = packageName + "." + f.getFileName().toString().replace(".class", "");
+                        String className = controllerPackage + "." + f.getFileName().toString().replace(".class", "");
                         try {
                             Class<?> clazz = Class.forName(className);
-                            if (clazz.isAnnotationPresent(AnnotationControlleur.class)
+                            if (clazz.isAnnotationPresent(AnnotationController.class)
                                     && !Modifier.isAbstract(clazz.getModifiers())) {
                                 controllerNames.add(clazz.getSimpleName());
                                 Method[] methods = clazz.getMethods();

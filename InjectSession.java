@@ -1,4 +1,4 @@
-package mg.p16.annotations;
+package mg.itu.prom16;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
