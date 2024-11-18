@@ -51,11 +51,9 @@ public class FrontController extends HttpServlet {
         super.init(config);
         controllerPackage = config.getInitParameter("controller-package"); // Recuperation du nom du package
         try {
-            // Verification si le packageControllerName n'existe pas
             if (controllerPackage == null || controllerPackage.isEmpty()) {
                 throw new Exception("Le nom du package du contrôleur n'est pas specifie.");
             }
-            // Scanne les contrôleurs dans le package
             scanControllers(controllerPackage);
         } catch (Exception e) {
             error = e.getMessage();
