@@ -61,6 +61,12 @@ public class FrontController extends HttpServlet {
             error = e.getMessage();
         }
     }
+    private void processData(HttpServletRequest request) {
+        String data = request.getParameter("data");
+        if (data != null) {
+            System.out.println("Processing data: " + data);
+        }
+    }
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
         throws Exception {
         StringBuffer requestURL = request.getRequestURL();
@@ -74,7 +80,6 @@ public class FrontController extends HttpServlet {
 
         response.setContentType("text/html");
 
-        // Erreur de requete invalide
         if (!error.isEmpty()) {
             errorCode = 400;
             errorMessage = "Requete invalide";
@@ -83,7 +88,6 @@ public class FrontController extends HttpServlet {
             return;
         }
 
-        // Contrôleur non trouve
         if (!urlMaping.containsKey(controllerSearched)) {
             errorCode = 404;
             errorMessage = "Ressource introuvable";
@@ -98,7 +102,6 @@ public class FrontController extends HttpServlet {
             Object object = clazz.getDeclaredConstructor().newInstance();
             Method method = null;
 
-            // Methode HTTP non autorisee
             if (!mapping.isVerbPresent(request.getMethod())) {
                 errorCode = 405;
                 errorMessage = "Methode non autorisee";
@@ -216,18 +219,15 @@ public class FrontController extends HttpServlet {
         } else if (type == boolean.class || type == Boolean.class) {
             return Boolean.parseBoolean(value);
         }
-        // Ajoutez d'autres conversions necessaires ici
         return null;
     }
 
     private void scanControllers(String controllerPackage) throws Exception {
         try {
-            // Charger le package et parcourir les classes
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             String path = controllerPackage.replace('.', '/');
             URL resource = classLoader.getResource(path);
 
-            // Verification si le package n'existe pas
             if (resource == null) {
                 throw new Exception("Le package specifie n'existe pas: " + controllerPackage);
             }
@@ -311,7 +311,6 @@ public class FrontController extends HttpServlet {
                     String fileName = filePart.getSubmittedFileName();
                     String filePath = "G:/S4/MrNaina/work/files_Upload" + fileName;
             
-                    // Enregistrer le fichier sur le serveur
                     try (InputStream fileContent = filePart.getInputStream();
                          FileOutputStream fos = new FileOutputStream(new File(filePath))) {
                          
@@ -329,32 +328,28 @@ public class FrontController extends HttpServlet {
                     parameterValues[i] = convertParameter(paramValue, parameters[i].getType()); // Assuming all parameters are strings for simplicity
                 }
             }
-            // Verifie si le parametre est annote avec @RequestObject
             else if (parameters[i].isAnnotationPresent(ParamObject.class)) {
                 Class<?> parameterType = parameters[i].getType();  // Recupere le type du parametre (le type de l'objet a creer)
                 Object parameterObject = parameterType.getDeclaredConstructor().newInstance();  // Cree une nouvelle instance de cet objet
     
-                // Parcourt tous les champs (fields) de l'objet
                 for (Field field : parameterType.getDeclaredFields()) {
                     ParamField param = field.getAnnotation(ParamField.class);
                     String fieldName = field.getName();  // Recupere le nom du champ
                     if (param == null) {
-                        throw new Exception("Etu002635 ,l'attribut " + fieldName +" dans le classe "+parameterObject.getClass().getSimpleName()+" n'a pas d'annotation ParamField "); 
+                        throw new Exception("Etu002501 ,l'attribut " + fieldName +" dans le classe "+parameterObject.getClass().getSimpleName()+" n'a pas d'annotation ParamField "); 
                     }  
                     String paramName = param.value();
                     String paramValue = request.getParameter(paramName);  // Recupere la valeur du parametre de la requete
 
-                    // Verifie si la valeur du parametre n'est pas null (si elle est trouvee dans la requete)
                     if (paramValue != null) {
                         Object convertedValue = convertParameter(paramValue, field.getType());  // Convertit la valeur de la requete en type de champ requis
 
-                        // Construit le nom du setter
                         String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
                         Method setter = parameterType.getMethod(setterName, field.getType());  // Recupere la methode setter correspondante
                         setter.invoke(parameterObject, convertedValue);  // Appelle le setter pour definir la valeur convertie dans le champ de l'objet
                     }
                 }
-                parameterValues[i] = parameterObject;  // Stocke l'objet cree dans le tableau des arguments
+                parameterValues[i] = parameterObject;
             }else if (parameters[i].isAnnotationPresent(InjectSession.class)) {
                 parameterValues[i] = new CustomSession(request.getSession());
             }
