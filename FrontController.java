@@ -203,6 +203,37 @@ public class FrontController extends HttpServlet {
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "An internal error occurred");
         }
     }
+    private void validateField(Field field, String paramValue) throws Exception {
+        // Vérifier si le champ est annoté avec @NotNull
+        if (field.isAnnotationPresent(NotNull.class) && (paramValue == null || paramValue.isEmpty())) {
+            throw new Exception("Le champ " + field.getName() + " ne doit pas être nul.");
+        }
+
+        // Vérifier le type Double
+        if (field.isAnnotationPresent(DoubleType.class)) {
+            try {
+                Double.parseDouble(paramValue);
+            } catch (NumberFormatException e) {
+                throw new Exception("Le champ " + field.getName() + " doit être de type double.");
+            }
+        }
+
+        // Vérifier le type Int
+        if (field.isAnnotationPresent(IntType.class)) {
+            try {
+                Integer.parseInt(paramValue);
+            } catch (NumberFormatException e) {
+                throw new Exception("Le champ " + field.getName() + " doit être de type int.");
+            }
+        }
+
+        // Vérifier le type String
+        if (field.isAnnotationPresent(StringType.class)) {
+            if (!(paramValue instanceof String)) {
+                throw new Exception("Le champ " + field.getName() + " doit être de type String.");
+            }
+        }
+    }
 
     public static Object convertParameter(String value, Class<?> type) {
         if (value == null) {
@@ -307,8 +338,9 @@ public class FrontController extends HttpServlet {
                 if(parameters[i].getType().equals(Part.class)){
                     Part filePart = request.getPart(param.value()); 
                     String fileName = filePart.getSubmittedFileName();
-                    String filePath = "G:/S4/MrNaina/work/files_Upload" + fileName;
+                    String filePath = "G:/S4/rNaina/work/files_Upload/" + fileName;
             
+                    // Enregistrer le fichier sur le serveur
                     try (InputStream fileContent = filePart.getInputStream();
                          FileOutputStream fos = new FileOutputStream(new File(filePath))) {
                          
@@ -326,28 +358,33 @@ public class FrontController extends HttpServlet {
                     parameterValues[i] = convertParameter(paramValue, parameters[i].getType()); // Assuming all parameters are strings for simplicity
                 }
             }
+            // Verifie si le parametre est annote avec @RequestObject
             else if (parameters[i].isAnnotationPresent(ParamObject.class)) {
                 Class<?> parameterType = parameters[i].getType();  // Recupere le type du parametre (le type de l'objet a creer)
                 Object parameterObject = parameterType.getDeclaredConstructor().newInstance();  // Cree une nouvelle instance de cet objet
     
+                // Parcourt tous les champs (fields) de l'objet
                 for (Field field : parameterType.getDeclaredFields()) {
                     ParamField param = field.getAnnotation(ParamField.class);
                     String fieldName = field.getName();  // Recupere le nom du champ
                     if (param == null) {
-                        throw new Exception("Etu002501 ,l'attribut " + fieldName +" dans le classe "+parameterObject.getClass().getSimpleName()+" n'a pas d'annotation ParamField "); 
+                        throw new Exception("Etu002635 ,l'attribut " + fieldName +" dans le classe "+parameterObject.getClass().getSimpleName()+" n'a pas d'annotation ParamField "); 
                     }  
                     String paramName = param.value();
-                    String paramValue = request.getParameter(paramName);  // Recupere la valeur du parametre de la requete
-
+                    String paramValue = request.getParameter(paramName);  // Recupere la valeur du parametre de la requete                      
+                    
+                    // Verifie si la valeur du parametre n'est pas null (si elle est trouvee dans la requete)
                     if (paramValue != null) {
+                        validateField(field, paramValue); 
                         Object convertedValue = convertParameter(paramValue, field.getType());  // Convertit la valeur de la requete en type de champ requis
-
+                        
+                        // Construit le nom du setter
                         String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
                         Method setter = parameterType.getMethod(setterName, field.getType());  // Recupere la methode setter correspondante
                         setter.invoke(parameterObject, convertedValue);  // Appelle le setter pour definir la valeur convertie dans le champ de l'objet
-                    }
+                    }                                                   
                 }
-                parameterValues[i] = parameterObject;
+                parameterValues[i] = parameterObject;  // Stocke l'objet cree dans le tableau des arguments
             }else if (parameters[i].isAnnotationPresent(InjectSession.class)) {
                 parameterValues[i] = new CustomSession(request.getSession());
             }
@@ -358,6 +395,7 @@ public class FrontController extends HttpServlet {
 
         return parameterValues;
     }
+
     private void injectSessionIfNeeded(Object controllerInstance, HttpSession session) throws IllegalAccessException {
         Field[] fields = controllerInstance.getClass().getDeclaredFields();
         for (Field field : fields) {
