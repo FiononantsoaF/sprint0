@@ -2,7 +2,7 @@
 
 frame_dir="G:/S4\MrNaina/work/framework/sprint0"
 lib_dir="G:/S4/MrNaina/work/framework/sprint0/lib"
-test_lib_dir="G:/S4/MrNaina/work/testSprint12/lib"
+test_lib_dir="G:/S4/MrNaina/work/testSprint13/lib"
 
 cd "$frame_dir" || exit
 

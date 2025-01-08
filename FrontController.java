@@ -204,12 +204,10 @@ public class FrontController extends HttpServlet {
         }
     }
     private void validateField(Field field, String paramValue) throws Exception {
-        // Vérifier si le champ est annoté avec @NotNull
         if (field.isAnnotationPresent(NotNull.class) && (paramValue == null || paramValue.isEmpty())) {
             throw new Exception("Le champ " + field.getName() + " ne doit pas être nul.");
         }
 
-        // Vérifier le type Double
         if (field.isAnnotationPresent(DoubleType.class)) {
             try {
                 Double.parseDouble(paramValue);
@@ -218,7 +216,6 @@ public class FrontController extends HttpServlet {
             }
         }
 
-        // Vérifier le type Int
         if (field.isAnnotationPresent(IntType.class)) {
             try {
                 Integer.parseInt(paramValue);
@@ -227,7 +224,6 @@ public class FrontController extends HttpServlet {
             }
         }
 
-        // Vérifier le type String
         if (field.isAnnotationPresent(StringType.class)) {
             if (!(paramValue instanceof String)) {
                 throw new Exception("Le champ " + field.getName() + " doit être de type String.");
@@ -338,7 +334,7 @@ public class FrontController extends HttpServlet {
                 if(parameters[i].getType().equals(Part.class)){
                     Part filePart = request.getPart(param.value()); 
                     String fileName = filePart.getSubmittedFileName();
-                    String filePath = "G:/S4/rNaina/work/files_Upload/" + fileName;
+                    String filePath = "G:/S4/MrNaina/files_upload" + fileName;
             
                     // Enregistrer le fichier sur le serveur
                     try (InputStream fileContent = filePart.getInputStream();
@@ -384,7 +380,7 @@ public class FrontController extends HttpServlet {
                         setter.invoke(parameterObject, convertedValue);  // Appelle le setter pour definir la valeur convertie dans le champ de l'objet
                     }                                                   
                 }
-                parameterValues[i] = parameterObject;  // Stocke l'objet cree dans le tableau des arguments
+                parameterValues[i] = parameterObject;  
             }else if (parameters[i].isAnnotationPresent(InjectSession.class)) {
                 parameterValues[i] = new CustomSession(request.getSession());
             }
