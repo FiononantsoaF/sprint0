@@ -6,6 +6,8 @@ import mg.itu.prom16.AnnotationController;
 import mg.itu.prom16.Post;
 import mg.itu.prom16.Param;
 import mg.itu.prom16.VerbAction;
+import mg.itu.prom16.RestApi;
+
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -49,7 +51,7 @@ public class FrontController extends HttpServlet {
     @Override
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
-        controllerPackage = config.getInitParameter("controller-package"); // Recuperation du nom du package
+        controllerPackage = config.getInitParameter("controller-package");
         try {
             if (controllerPackage == null || controllerPackage.isEmpty()) {
                 throw new Exception("Le nom du package du contrôleur n'est pas specifie.");
@@ -66,10 +68,14 @@ public class FrontController extends HttpServlet {
         }
     }
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-        throws Exception {
+            throws Exception {
         StringBuffer requestURL = request.getRequestURL();
+       // String currentUrl = request.getRequestURI();
         String[] requestUrlSplitted = requestURL.toString().split("/");
         String controllerSearched = requestUrlSplitted[requestUrlSplitted.length - 1];
+        // if (request.getMethod().equals("GET")) {
+        //     request.getSession().setAttribute("previousUrl", currentUrl);
+        // }
 
         PrintWriter out = response.getWriter();
         int errorCode = 0;
@@ -108,7 +114,6 @@ public class FrontController extends HttpServlet {
                 return;
             }
 
-            // Verification de l'existence de la methode correspondante
             for (Method m : clazz.getDeclaredMethods()) {
                 for (VerbAction action : mapping.getVerbActions()) {
                     if (m.getName().equals(action.getMethodeName()) && action.getVerb().equalsIgnoreCase(request.getMethod())) {
@@ -129,11 +134,30 @@ public class FrontController extends HttpServlet {
                 return;
             }
 
-            // Execution de la methode trouvee
+            // ValidationError validationError = validateAndCastParameters(method, request);
+        
+            // if (validationError.hasErrors()) {
+            //     if (method.isAnnotationPresent(ErrorURL.class)) {
+            //         for (Map.Entry<String, String> error : validationError.getErrors().entrySet()) {
+            //             request.setAttribute(error.getKey(), error.getValue());
+            //         }
+            //         for (Map.Entry<String, Object> value : validationError.getFormData().entrySet()) {
+            //             request.setAttribute(value.getKey(), value.getValue());
+            //         }
+                    
+            //         String previousUrl = (String) request.getSession().getAttribute("previousUrl");
+            //         if (previousUrl != null) {
+            //             RequestDispatcher dispatcher = request.getRequestDispatcher(previousUrl);
+            //             dispatcher.forward(request, response);
+            //             return;
+            //         }
+            //     }
+            // }
+    
+            // Si pas d'erreurs, continuer avec l'exécution normale
             Object[] parameters = getMethodParameters(method, request);
             Object returnValue = method.invoke(object, parameters);
 
-            // Gerer la reponse selon le type de retour de la methode
             if (method.isAnnotationPresent(RestApi.class)) {
                 response.setContentType("application/json");
                 Gson gson = new Gson();
@@ -141,6 +165,8 @@ public class FrontController extends HttpServlet {
             } else {
                 if (returnValue instanceof ModelView) {
                     ModelView modelView = (ModelView) returnValue;
+                    // Ajouter les données du formulaire pour le préremplissage en cas de succès
+                    // modelView.getData().putAll(validationError.getFormData());
                     for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
                         request.setAttribute(entry.getKey(), entry.getValue());
                     }
@@ -232,21 +258,28 @@ public class FrontController extends HttpServlet {
     }
 
     public static Object convertParameter(String value, Class<?> type) {
-        if (value == null) {
+        if (value == null || value.trim().isEmpty()) {
             return null;
         }
-        if (type == String.class) {
-            return value;
-        } else if (type == int.class || type == Integer.class) {
-            return Integer.parseInt(value);
-        } else if (type == long.class || type == Long.class) {
-            return Long.parseLong(value);
-        } else if (type == boolean.class || type == Boolean.class) {
-            return Boolean.parseBoolean(value);
+        try {
+            if (type == String.class) {
+                return value;
+            } else if (type == Integer.class || type == int.class) {
+                return Integer.parseInt(value.trim());
+            } else if (type == Double.class || type == double.class) {
+                return Double.parseDouble(value.trim());
+            } else if (type == Boolean.class || type == boolean.class) {
+                return Boolean.parseBoolean(value.trim());
+            } else if (type == Long.class || type == long.class) {
+                return Long.parseLong(value.trim());
+            } else if (type == Float.class || type == float.class) {
+                return Float.parseFloat(value.trim());
+            }
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid format for type " + type.getSimpleName());
         }
         return null;
     }
-
     private void scanControllers(String controllerPackage) throws Exception {
         try {
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
@@ -278,6 +311,7 @@ public class FrontController extends HttpServlet {
                                         } else if (method.isAnnotationPresent(Post.class)) {
                                             verb = "POST";
                                         }
+
                                         VerbAction verbAction = new VerbAction(method.getName(), verb);
                                         Mapping map = new Mapping(className);
                                         if (urlMaping.containsKey(url)) {
@@ -364,7 +398,7 @@ public class FrontController extends HttpServlet {
                     ParamField param = field.getAnnotation(ParamField.class);
                     String fieldName = field.getName();  // Recupere le nom du champ
                     if (param == null) {
-                        throw new Exception("Etu002635 ,l'attribut " + fieldName +" dans le classe "+parameterObject.getClass().getSimpleName()+" n'a pas d'annotation ParamField "); 
+                        throw new Exception("Etu002501 ,l'attribut " + fieldName +" dans le classe "+parameterObject.getClass().getSimpleName()+" n'a pas d'annotation ParamField "); 
                     }  
                     String paramName = param.value();
                     String paramValue = request.getParameter(paramName);  // Recupere la valeur du parametre de la requete                      
@@ -403,6 +437,59 @@ public class FrontController extends HttpServlet {
             }
         }
     }
+
+// sprint 14
+    // private ValidationError validateAndCastParameters(Method method, HttpServletRequest request) {
+    //     ValidationError validationError = new ValidationError();
+    //     Parameter[] parameters = method.getParameters();
+    
+    //     for (Parameter parameter : parameters) {
+    //         if (parameter.isAnnotationPresent(ParamObject.class)) {
+    //             Class<?> parameterType = parameter.getType();
+                
+    //             for (Field field : parameterType.getDeclaredFields()) {
+    //                 ParamField paramField = field.getAnnotation(ParamField.class);
+    //                 if (paramField != null) {
+    //                     String paramName = paramField.value();
+    //                     String paramValue = request.getParameter(paramName);
+                        
+    //                     // Store original value for form repopulation
+    //                     validationError.addFormValue(paramName, paramValue);
+    
+    //                     try {
+    //                         // Validate required fields
+    //                         if (field.isAnnotationPresent(NotNull.class) && 
+    //                             (paramValue == null || paramValue.trim().isEmpty())) {
+    //                             validationError.addError(paramName, "Ce champ est obligatoire");
+    //                             continue;
+    //                         }
+    
+    //                         // Type casting validation
+    //                         if (paramValue != null && !paramValue.trim().isEmpty()) {
+    //                             if (field.getType() == Integer.class || field.getType() == int.class) {
+    //                                 try {
+    //                                     Integer.parseInt(paramValue);
+    //                                 } catch (NumberFormatException e) {
+    //                                     validationError.addError(paramName, "Doit être un nombre entier");
+    //                                 }
+    //                             } else if (field.getType() == Double.class || field.getType() == double.class) {
+    //                                 try {
+    //                                     Double.parseDouble(paramValue);
+    //                                 } catch (NumberFormatException e) {
+    //                                     validationError.addError(paramName, "Doit être un nombre décimal");
+    //                                 }
+    //                             }
+    //                         }
+    //                     } catch (Exception e) {
+    //                         validationError.addError(paramName, e.getMessage());
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     return validationError;
+    // }
+    //14
 }
 class Mapping {
     
@@ -448,5 +535,7 @@ class Mapping {
         }
         return false;
     }
+
+
 
 }   

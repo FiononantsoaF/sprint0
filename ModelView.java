@@ -1,4 +1,5 @@
 package mg.itu.prom16;
+
 import java.util.Map;
 import java.util.HashMap;
 public class ModelView {
