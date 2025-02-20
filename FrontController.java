@@ -154,7 +154,7 @@ public class FrontController extends HttpServlet {
             //     }
             // }
     
-            // Si pas d'erreurs, continuer avec l'exécution normale
+            // 
             Object[] parameters = getMethodParameters(method, request);
             Object returnValue = method.invoke(object, parameters);
 
@@ -165,7 +165,6 @@ public class FrontController extends HttpServlet {
             } else {
                 if (returnValue instanceof ModelView) {
                     ModelView modelView = (ModelView) returnValue;
-                    // Ajouter les données du formulaire pour le préremplissage en cas de succès
                     // modelView.getData().putAll(validationError.getFormData());
                     for (Map.Entry<String, Object> entry : modelView.getData().entrySet()) {
                         request.setAttribute(entry.getKey(), entry.getValue());
