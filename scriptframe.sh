@@ -17,7 +17,6 @@ javac -cp "$LIB_DIR/*" -d "$BUILD_DIR" $(find "$SRC_DIR" -name "*.java")
 # Création du JAR
 jar cf "$DIST_DIR/$JAR_NAME" -C "$BUILD_DIR" .
 
-# Copie des dépendances dans le répertoire dist
 cp "$LIB_DIR"/* "$DIST_DIR"/
 
 echo "Compilation terminée. Le fichier JAR est disponible dans $DIST_DIR/$JAR_NAME"
