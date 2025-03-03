@@ -1,4 +1,4 @@
-package mg.itu.utile;
+package mg.p16.utile;
 
 public class VerbAction {
     private String methodeName;

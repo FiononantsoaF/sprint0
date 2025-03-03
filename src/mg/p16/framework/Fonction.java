@@ -34,7 +34,6 @@ import mg.p16.utile.MethodParamResult;
 import mg.p16.utile.VerbAction;
 
 public class Fonction {
-
     public void scanControllers(String packageName, List<String> controllerNames, HashMap<String, Mapping> urlMapping)
             throws Exception {
         try {

@@ -1,4 +1,4 @@
-package mg.itu.framework;
+package mg.p16.framework;
 import com.google.gson.Gson;
 
 import mg.p16.models.CustomException;
