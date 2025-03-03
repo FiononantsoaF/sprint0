@@ -20,4 +20,10 @@ exemple :
     </servlet-mapping>
 
 
+ajouter les paramatre suivant pour authentification des url
+        <init-param>
+            <param-name>url_auth</param-name>
+            <!-- <param-value>ecrire votre param value ici </param-value> -->
+        </init-param>
+
 
